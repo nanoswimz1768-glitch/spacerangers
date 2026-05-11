@@ -709,7 +709,7 @@ public partial class StarMapOverlay : Control
         var tunedTarget = _systems.FirstOrDefault(system => SameSystem(system.Id, _tunedSystemId));
         if (tunedTarget is not null && !SameSystem(tunedTarget.Id, _currentSystemId))
         {
-            DrawWarpRouteTo(tunedTarget, true, -1f);
+            DrawWarpRouteTo(tunedTarget, true, 1f);
         }
 
         if (_selected is null

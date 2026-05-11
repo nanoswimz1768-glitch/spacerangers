@@ -1431,9 +1431,11 @@ Warp VFX V2 notes:
 
 - The warp visual is a corridor/sleeve from the ship nose into a forward mouth, not a detached portal.
 - During outbound transit the player ship is visually pulled into the sleeve and fades/scales into the mouth; during arrival it starts inside the sleeve and exits back to the spawn point.
+- Arrival staging rotates the sleeve behind the spawn point, so the ship exits nose-first toward the star instead of backing out of the tunnel.
 - `WarpTunnelLayer` uses imported premium EffectBlocks textures already present under `game/assets/effects/effectblocks` for the portal ring and sparkle accents, while keeping the sleeve, speed streaks, and colorization procedural.
 - Warp state clamps large frame deltas so first-frame stalls cannot skip the entrance/arrival phases.
 - The HUD warp bar is drawn above the bottom panel so it does not overlap the normal navigation status.
+- The locked gold starmap route reuses the same curve side as the cyan preview route, so confirming a target no longer changes the route geometry.
 
 ## Safe Change Checklist
 

@@ -402,7 +402,7 @@ public partial class GameRoot : Node2D
         if (_warpTunnel is not null && _warpTunnel.Active)
         {
             _warpTunnel.Position = warpVisual.TunnelPosition;
-            _warpTunnel.Rotation = ship.Rotation;
+            _warpTunnel.Rotation = warpVisual.TunnelRotation;
             _warpTunnel.MouthOffset = warpVisual.TunnelMouthOffset;
         }
 
@@ -470,7 +470,7 @@ public partial class GameRoot : Node2D
     private WarpVisualState BuildWarpVisualState(Vector2 shipPosition, float shipRotation)
     {
         var baseScale = new Vector2(_selectedShipVisualScale, _selectedShipVisualScale);
-        var defaultState = new WarpVisualState(shipPosition, baseScale, 1f, shipPosition, new Vector2(0f, -540f));
+        var defaultState = new WarpVisualState(shipPosition, baseScale, 1f, shipPosition, new Vector2(0f, -540f), shipRotation);
         if (!_warpInTransit)
         {
             return defaultState;
@@ -498,11 +498,12 @@ public partial class GameRoot : Node2D
                 new Vector2(scale, scale),
                 alpha,
                 shipPosition,
-                mouthOffset);
+                mouthOffset,
+                shipRotation);
         }
 
         var exit = SmoothStep(0.06f, 0.90f, phase);
-        var shipStartOffset = forward * (460f * (1f - exit));
+        var shipStartOffset = -forward * (460f * (1f - exit));
         var exitScale = _selectedShipVisualScale * (0.58f + 0.42f * exit);
         var exitAlpha = SmoothStep(0.02f, 0.30f, phase);
         mouthOffset = new Vector2(0f, -520f + SmoothStep(0.60f, 1f, phase) * 45f);
@@ -511,7 +512,8 @@ public partial class GameRoot : Node2D
             new Vector2(exitScale, exitScale),
             exitAlpha,
             shipPosition,
-            mouthOffset);
+            mouthOffset,
+            shipRotation + MathF.PI);
     }
 
     private void ToggleStarMap()
@@ -816,7 +818,7 @@ public partial class GameRoot : Node2D
         {
             var warpVisual = BuildWarpVisualState(player.Position.ToGodot(), player.Rotation);
             _warpTunnel.Position = warpVisual.TunnelPosition;
-            _warpTunnel.Rotation = player.Rotation;
+            _warpTunnel.Rotation = warpVisual.TunnelRotation;
             _warpTunnel.MouthOffset = warpVisual.TunnelMouthOffset;
         }
     }
@@ -2725,7 +2727,8 @@ public partial class GameRoot : Node2D
         Vector2 ShipScale,
         float ShipAlpha,
         Vector2 TunnelPosition,
-        Vector2 TunnelMouthOffset);
+        Vector2 TunnelMouthOffset,
+        float TunnelRotation);
 
     private static void ConfigureInputMap()
     {

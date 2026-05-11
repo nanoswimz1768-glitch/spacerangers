@@ -23,6 +23,7 @@ Useful commands from the repository root:
 python tools/prepare_highres_generation_batch.py
 python tools/process_highres_imagegen_assets.py --update-catalog --replace-lowres --replace-backgrounds
 python tools/generate_star_systems.py --seed 3311337 --clean --write-image-prompts
+python tools/generate_star_systems.py --seed 3311337 --sectors 6 --clean
 ```
 
 Outputs:
@@ -54,6 +55,21 @@ Default generation creates the starting sector `Orion` with three star systems:
 the hand-authored `Sol` preset plus two generated systems. `--count` controls only
 the generated systems in that starting sector, and every sector is clamped to 2-5
 systems so the map stays curated instead of becoming another giant dump.
+
+The checked-in starmap test galaxy is generated with `--sectors 6 --clean`.
+`galaxy.json` and each generated system JSON now carry `parsecX`/`parsecY`.
+These coordinates are the source of truth for route distance: neighboring
+systems inside a sector are laid out on a 10 parsec hex step, while systems in
+different sectors are naturally farther apart. Sectors must still draw as a
+single contiguous mosaic on the starmap; parsec spacing affects star placement
+inside those mosaic cells and the route distance label, not a visual gap between
+sector borders.
+
+The starmap uses left click to select a destination and draw a thin cyan dashed
+route with a parsec label. Pressing OK tunes the warp engine, closes the map,
+and keeps the route locked in gold when the map is opened again. The right panel
+Reset Drive button clears that tuned target; changing the current system also
+clears it. Holding right mouse over a star opens the planet list popup.
 
 Generated runtime systems use the same background contract as Sol through
 `SpaceBackdropView`: a texture tile layer plus a procedural starfield layer.

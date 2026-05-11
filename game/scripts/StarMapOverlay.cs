@@ -13,18 +13,19 @@ public partial class StarMapOverlay : Control
     private const float FooterHeight = 54f;
     private const float SectorGap = 0f;
     private const float SystemHitRadius = 14f;
+    private const float SectorParsecPadding = 7.5f;
     private const string MapBackdropPath = "res://assets/generated/background_tiles/cold_blue_void_01_tile.png";
 
     private readonly List<StarMapSystemEntry> _systems = new();
     private readonly List<SystemLayout> _layouts = new();
     private readonly Dictionary<string, SectorLayout> _sectorLayouts = new(StringComparer.OrdinalIgnoreCase);
     private readonly Vector2[] _currentMarker = new Vector2[4];
-    private readonly Vector2[] _targetMarker = new Vector2[4];
 
     private Rect2 _panelRect;
     private Rect2 _mapRect;
     private Rect2 _sideRect;
     private Rect2 _okRect;
+    private Rect2 _resetRect;
     private Rect2 _closeRect;
     private Rect2 _selectedCardRect;
     private string _currentSystemId = string.Empty;
@@ -46,6 +47,7 @@ public partial class StarMapOverlay : Control
 
     public event Action? CloseRequested;
     public event Action<StarMapSystemEntry>? ConfirmTargetRequested;
+    public event Action? ResetTargetRequested;
 
     public override void _Ready()
     {
@@ -208,10 +210,22 @@ public partial class StarMapOverlay : Control
             return true;
         }
 
+        if (_resetRect.HasPoint(click.Position))
+        {
+            _tunedSystemId = string.Empty;
+            ResetTargetRequested?.Invoke();
+            QueueRedraw();
+            return true;
+        }
+
         if (_okRect.HasPoint(click.Position) && _selected is not null)
         {
-            ConfirmTargetRequested?.Invoke(_selected);
-            _tunedSystemId = _selected.Id;
+            if (!SameSystem(_selected.Id, _currentSystemId))
+            {
+                ConfirmTargetRequested?.Invoke(_selected);
+                _tunedSystemId = _selected.Id;
+            }
+
             Close();
             return true;
         }
@@ -270,6 +284,9 @@ public partial class StarMapOverlay : Control
         _okRect = new Rect2(
             new Vector2(_sideRect.Position.X + 18f, _sideRect.End.Y - 50f),
             new Vector2(_sideRect.Size.X - 36f, 34f));
+        _resetRect = new Rect2(
+            new Vector2(_sideRect.Position.X + 18f, _sideRect.End.Y - 90f),
+            new Vector2(_sideRect.Size.X - 36f, 28f));
         _closeRect = new Rect2(
             new Vector2(_panelRect.End.X - 52f, _panelRect.Position.Y + 12f),
             new Vector2(32f, 32f));
@@ -284,7 +301,9 @@ public partial class StarMapOverlay : Control
 
         var groups = _systems
             .GroupBy(system => SectorKey(system), StringComparer.OrdinalIgnoreCase)
-            .OrderBy(group => group.First().SectorName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Average(system => system.ParsecPosition.Y))
+            .ThenBy(group => group.Average(system => system.ParsecPosition.X))
+            .ThenBy(group => group.First().SectorName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         var sectorCount = Math.Max(1, groups.Length);
@@ -341,6 +360,16 @@ public partial class StarMapOverlay : Control
             inner = sector.Rect.Grow(-Math.Clamp(sectorMin * 0.07f, 2f, 10f));
         }
 
+        var useParsecs = HasUsefulParsecLayout(sectorSystems);
+        var parsecBounds = useParsecs
+            ? ParsecBounds(sectorSystems)
+            : default;
+        var parsecCenter = useParsecs
+            ? parsecBounds.GetCenter()
+            : Vector2.Zero;
+        var parsecScale = useParsecs
+            ? ParsecScale(parsecBounds, inner)
+            : 1f;
         var aspect = Math.Max(0.5f, inner.Size.X / Math.Max(1f, inner.Size.Y));
         var columns = Math.Max(1, (int)MathF.Ceiling(MathF.Sqrt(count * aspect)));
         var rows = Math.Max(1, (int)MathF.Ceiling(count / (float)columns));
@@ -352,12 +381,9 @@ public partial class StarMapOverlay : Control
         for (var index = 0; index < count; index++)
         {
             var entry = sectorSystems[index];
-            var row = index / columns;
-            var column = index % columns;
-            var jitter = new Vector2(
-                HashSigned(entry.Id, 17) * Math.Min(16f, cell.X * 0.20f),
-                HashSigned(entry.Id, 31) * Math.Min(12f, cell.Y * 0.18f));
-            var position = inner.Position + new Vector2((column + 0.5f) * cell.X, (row + 0.5f) * cell.Y) + jitter;
+            var position = useParsecs
+                ? inner.GetCenter() + (entry.ParsecPosition - parsecCenter) * parsecScale
+                : GridSystemPosition(entry, index, columns, cell, inner);
             var clampInset = Math.Clamp(sectorMin * 0.10f, 2f, 22f);
             position = ClampToRect(position, sector.Rect.Grow(-clampInset));
             position = MoveInsidePolygon(position, sector.Rect.GetCenter(), sector.Polygon);
@@ -370,6 +396,49 @@ public partial class StarMapOverlay : Control
         }
 
         ResolveLabelOverlaps(sector);
+    }
+
+    private static Vector2 GridSystemPosition(StarMapSystemEntry entry, int index, int columns, Vector2 cell, Rect2 inner)
+    {
+        var row = index / columns;
+        var column = index % columns;
+        var jitter = new Vector2(
+            HashSigned(entry.Id, 17) * Math.Min(16f, cell.X * 0.20f),
+            HashSigned(entry.Id, 31) * Math.Min(12f, cell.Y * 0.18f));
+        return inner.Position + new Vector2((column + 0.5f) * cell.X, (row + 0.5f) * cell.Y) + jitter;
+    }
+
+    private static bool HasUsefulParsecLayout(IReadOnlyList<StarMapSystemEntry> systems)
+    {
+        if (systems.Count <= 1)
+        {
+            return true;
+        }
+
+        var first = systems[0].ParsecPosition;
+        return systems.Any(system => system.ParsecPosition.DistanceSquaredTo(first) > 0.01f);
+    }
+
+    private static Rect2 ParsecBounds(IReadOnlyList<StarMapSystemEntry> systems)
+    {
+        var min = systems[0].ParsecPosition;
+        var max = min;
+        foreach (var system in systems.Skip(1))
+        {
+            min = new Vector2(Math.Min(min.X, system.ParsecPosition.X), Math.Min(min.Y, system.ParsecPosition.Y));
+            max = new Vector2(Math.Max(max.X, system.ParsecPosition.X), Math.Max(max.Y, system.ParsecPosition.Y));
+        }
+
+        return new Rect2(min, max - min);
+    }
+
+    private static float ParsecScale(Rect2 parsecBounds, Rect2 inner)
+    {
+        var paddedSpan = new Vector2(
+            Math.Max(10f, parsecBounds.Size.X + SectorParsecPadding * 2f),
+            Math.Max(10f, parsecBounds.Size.Y + SectorParsecPadding * 2f));
+        var scale = Math.Min(inner.Size.X / paddedSpan.X, inner.Size.Y / paddedSpan.Y);
+        return Math.Clamp(scale, 3.5f, 18f);
     }
 
     private void ResolveLabelOverlaps(SectorLayout sector)
@@ -402,6 +471,36 @@ public partial class StarMapOverlay : Control
                 }
 
                 _layouts[currentIndex] = current with { LabelRect = shifted };
+            }
+        }
+
+        for (var pass = 0; pass < 4 && !_hideRoutineLabels; pass++)
+        {
+            for (var i = 0; i < indexes.Length; i++)
+            {
+                for (var j = i + 1; j < indexes.Length; j++)
+                {
+                    var leftIndex = indexes[i];
+                    var rightIndex = indexes[j];
+                    var left = _layouts[leftIndex];
+                    var right = _layouts[rightIndex];
+                    if (!left.LabelRect.Grow(2f).Intersects(right.LabelRect.Grow(2f)))
+                    {
+                        continue;
+                    }
+
+                    var direction = right.LabelRect.GetCenter() - left.LabelRect.GetCenter();
+                    if (direction.LengthSquared() < 0.001f)
+                    {
+                        direction = new Vector2(HashSigned(right.Entry.Id, pass + 301), HashSigned(right.Entry.Id, pass + 401));
+                    }
+
+                    direction = direction.Normalized();
+                    var shifted = ClampRectToBounds(
+                        new Rect2(right.LabelRect.Position + new Vector2(direction.X * 12f, direction.Y * 7f), right.LabelRect.Size),
+                        sector.Rect.Grow(-8f));
+                    _layouts[rightIndex] = right with { LabelRect = shifted };
+                }
             }
         }
 
@@ -607,13 +706,16 @@ public partial class StarMapOverlay : Control
 
     private void DrawWarpRoute()
     {
-        if (_selected is null || SameSystem(_selected.Id, _currentSystemId))
+        var target = _selected is not null && !SameSystem(_selected.Id, _currentSystemId)
+            ? _selected
+            : _systems.FirstOrDefault(system => SameSystem(system.Id, _tunedSystemId));
+        if (target is null || SameSystem(target.Id, _currentSystemId))
         {
             return;
         }
 
-        var from = _layouts.FirstOrDefault(layout => SameSystem(layout.Entry.Id, _currentSystemId));
-        var to = _layouts.FirstOrDefault(layout => SameSystem(layout.Entry.Id, _selected.Id));
+        var from = FindLayout(_currentSystemId);
+        var to = FindLayout(target.Id);
         if (from.Entry is null || to.Entry is null)
         {
             return;
@@ -631,26 +733,73 @@ public partial class StarMapOverlay : Control
         var start = from.Position + direction * (from.StarRadius + 20f);
         var end = to.Position - direction * (to.StarRadius + 18f);
         var routeLength = start.DistanceTo(end);
-        var routeColor = new Color(0.42f, 1f, 0.86f, 0.94f);
-        var control = (start + end) * 0.5f - normal * Math.Clamp(routeLength * 0.18f, 48f, 112f);
+        var locked = SameSystem(target.Id, _tunedSystemId);
+        var routeColor = locked
+            ? new Color(1f, 0.76f, 0.30f, 0.96f)
+            : new Color(0.40f, 1f, 0.88f, 0.92f);
+        var glowColor = locked
+            ? new Color(1f, 0.58f, 0.12f, 0.12f)
+            : new Color(0.08f, 0.90f, 1f, 0.12f);
+        var control = (start + end) * 0.5f - normal * Math.Clamp(routeLength * 0.15f, 38f, 92f);
         var previous = start;
-        for (var i = 1; i <= 36; i++)
+        for (var i = 1; i <= 42; i++)
         {
-            var t = i / 36f;
+            var t = i / 42f;
             var point = QuadraticPoint(start, control, end, t);
-            DrawLine(previous, point, new Color(0.08f, 0.90f, 1f, 0.16f), 6.2f, true);
+            DrawLine(previous, point, glowColor, locked ? 4.0f : 3.4f, true);
             previous = point;
         }
 
-        for (var i = 0; i < 28; i += 2)
+        for (var i = 0; i < 36; i += 2)
         {
-            var t0 = i / 28f;
-            var t1 = Math.Min(1f, t0 + 0.038f);
-            DrawLine(QuadraticPoint(start, control, end, t0), QuadraticPoint(start, control, end, t1), routeColor, 2.6f, true);
+            var t0 = i / 36f;
+            var t1 = Math.Min(1f, t0 + 0.032f);
+            DrawLine(QuadraticPoint(start, control, end, t0), QuadraticPoint(start, control, end, t1), routeColor, locked ? 1.9f : 1.6f, true);
         }
 
-        DrawCircle(end, 6.6f, new Color(0.20f, 1f, 0.84f, 0.28f));
-        DrawCircle(end, 2.8f, new Color(0.72f, 1f, 0.92f, 0.95f));
+        var routeEndDirection = (end - QuadraticPoint(start, control, end, 0.94f)).Normalized();
+        DrawRoutePointer(end, routeEndDirection, routeColor, locked);
+        DrawRouteDistanceLabel(start, control, end, RouteDistanceParsecs(from.Entry, to.Entry), routeColor);
+    }
+
+    private SystemLayout FindLayout(string systemId)
+    {
+        return _layouts.FirstOrDefault(layout => SameSystem(layout.Entry.Id, systemId));
+    }
+
+    private void DrawRoutePointer(Vector2 tip, Vector2 direction, Color color, bool locked)
+    {
+        if (direction.LengthSquared() < 0.001f)
+        {
+            direction = Vector2.Right;
+        }
+
+        direction = direction.Normalized();
+        var normal = new Vector2(-direction.Y, direction.X);
+        var size = locked ? 13f : 11f;
+        var width = locked ? 5.5f : 4.6f;
+        var back = tip - direction * size;
+        DrawLine(tip, back + normal * width, color, locked ? 2.0f : 1.65f, true);
+        DrawLine(tip, back - normal * width, color, locked ? 2.0f : 1.65f, true);
+        DrawCircle(tip, locked ? 3.4f : 2.6f, WithAlpha(color, locked ? 0.80f : 0.66f));
+    }
+
+    private void DrawRouteDistanceLabel(Vector2 start, Vector2 control, Vector2 end, float parsecs, Color color)
+    {
+        var font = GetThemeDefaultFont();
+        var label = FormatParsecs(parsecs);
+        var point = QuadraticPoint(start, control, end, 0.52f) + new Vector2(8f, -7f);
+        DrawMapText(font, point, label, -1f, Math.Max(11, _systemFontSize), WithAlpha(color, 0.92f));
+    }
+
+    private static float RouteDistanceParsecs(StarMapSystemEntry from, StarMapSystemEntry to)
+    {
+        return MathF.Round(from.ParsecPosition.DistanceTo(to.ParsecPosition) * 10f) / 10f;
+    }
+
+    private static string FormatParsecs(float parsecs)
+    {
+        return $"{parsecs.ToString("0.#", CultureInfo.InvariantCulture)} pc";
     }
 
     private void DrawSystems()
@@ -679,7 +828,7 @@ public partial class StarMapOverlay : Control
 
             if (isTarget)
             {
-                DrawTargetMarker(layout.Position, layout.StarRadius + 8f);
+                DrawTargetMarker(layout.Position, layout.StarRadius + 9f, true);
             }
 
             DrawStarGlyph(layout, color, isCurrent || isSelected || isTarget, pulse);
@@ -731,15 +880,20 @@ public partial class StarMapOverlay : Control
         DrawLine(_currentMarker[1], _currentMarker[3], WithAlpha(color, 0.30f), 0.9f, true);
     }
 
-    private void DrawTargetMarker(Vector2 center, float radius)
+    private void DrawTargetMarker(Vector2 center, float radius, bool locked)
     {
-        var color = new Color(0.28f, 1f, 0.86f, 0.82f);
-        _targetMarker[0] = center + new Vector2(0f, -radius);
-        _targetMarker[1] = center + new Vector2(radius, 0f);
-        _targetMarker[2] = center + new Vector2(0f, radius);
-        _targetMarker[3] = center + new Vector2(-radius, 0f);
-        DrawPolyline(_targetMarker, color, 1.4f, true);
-        DrawLine(_targetMarker[^1], _targetMarker[0], color, 1.4f, true);
+        var color = locked
+            ? new Color(1f, 0.76f, 0.30f, 0.88f)
+            : new Color(0.42f, 1f, 0.88f, 0.82f);
+        var spin = _pulse * 0.85f;
+        DrawCircle(center, radius + 4f, WithAlpha(color, 0.075f));
+        for (var i = 0; i < 3; i++)
+        {
+            var start = spin + i * MathF.Tau / 3f;
+            DrawArc(center, radius, start, start + MathF.Tau * 0.15f, 12, color, locked ? 1.45f : 1.15f, true);
+        }
+
+        DrawArc(center, radius + 5f, -spin * 0.55f, -spin * 0.55f + MathF.Tau * 0.30f, 18, WithAlpha(color, 0.38f), 0.9f, true);
     }
 
     private void DrawTextWithShadow(Font? font, Vector2 position, string text, float width, int fontSize, Color color)
@@ -752,6 +906,11 @@ public partial class StarMapOverlay : Control
     {
         var snapped = PixelSnap(position);
         var outline = new Color(0f, 0.012f, 0.020f, Math.Clamp(color.A * 0.92f, 0f, 0.86f));
+        var softOutline = WithAlpha(outline, outline.A * 0.68f);
+        DrawString(font, snapped + new Vector2(-1f, -1f), text, HorizontalAlignment.Left, width, fontSize, softOutline);
+        DrawString(font, snapped + new Vector2(1f, -1f), text, HorizontalAlignment.Left, width, fontSize, softOutline);
+        DrawString(font, snapped + new Vector2(-1f, 1f), text, HorizontalAlignment.Left, width, fontSize, softOutline);
+        DrawString(font, snapped + new Vector2(1f, 1f), text, HorizontalAlignment.Left, width, fontSize, softOutline);
         DrawString(font, snapped + new Vector2(-1f, 0f), text, HorizontalAlignment.Left, width, fontSize, outline);
         DrawString(font, snapped + new Vector2(1f, 0f), text, HorizontalAlignment.Left, width, fontSize, outline);
         DrawString(font, snapped + new Vector2(0f, -1f), text, HorizontalAlignment.Left, width, fontSize, outline);
@@ -781,6 +940,26 @@ public partial class StarMapOverlay : Control
             DrawSelectedSystem(font, _selected);
         }
 
+        var hasTunedTarget = !string.IsNullOrWhiteSpace(_tunedSystemId);
+        var resetFill = hasTunedTarget
+            ? new Color(0.15f, 0.12f, 0.08f, 0.72f)
+            : new Color(0.05f, 0.11f, 0.13f, 0.48f);
+        var resetLine = hasTunedTarget
+            ? new Color(1f, 0.72f, 0.26f, 0.62f)
+            : new Color(0.34f, 0.56f, 0.62f, 0.22f);
+        DrawRect(_resetRect, resetFill, true);
+        DrawRect(_resetRect, resetLine, false, 1.05f);
+        var resetText = "RESET DRIVE";
+        var resetTextWidth = font?.GetStringSize(resetText, HorizontalAlignment.Left, -1f, 13).X ?? 80f;
+        DrawString(
+            font,
+            PixelSnap(_resetRect.Position + new Vector2((_resetRect.Size.X - resetTextWidth) * 0.5f, 20f)),
+            resetText,
+            HorizontalAlignment.Left,
+            -1f,
+            13,
+            hasTunedTarget ? new Color(1f, 0.82f, 0.40f, 0.86f) : new Color(0.54f, 0.70f, 0.76f, 0.42f));
+
         var okColor = _selected is null
             ? new Color(0.16f, 0.30f, 0.34f, 0.54f)
             : new Color(0.02f, 0.48f, 0.58f, 0.86f);
@@ -797,9 +976,14 @@ public partial class StarMapOverlay : Control
         DrawCircle(p + new Vector2(10f, 6f), 8f, new Color(entry.StarColor.R, entry.StarColor.G, entry.StarColor.B, 0.18f));
         DrawCircle(p + new Vector2(10f, 6f), 5f, entry.StarColor);
         DrawTextWithShadow(font, p + new Vector2(26f, 13f), entry.DisplayName, _selectedCardRect.Size.X - 50f, 19, new Color(0.78f, 1f, 0.94f, 0.98f));
+        var current = _systems.FirstOrDefault(system => SameSystem(system.Id, _currentSystemId));
+        var parsecs = current is null
+            ? 0f
+            : RouteDistanceParsecs(current, entry);
         DrawInfoLine(font, p + new Vector2(0f, 52f), "SECTOR", SectorName(entry));
         DrawInfoLine(font, p + new Vector2(0f, 80f), "PLANETS", entry.PlanetCount.ToString(CultureInfo.InvariantCulture));
-        DrawInfoLine(font, p + new Vector2(0f, 108f), "TARGET", SameSystem(entry.Id, _tunedSystemId) ? "Tuned" : "Not tuned");
+        DrawInfoLine(font, p + new Vector2(0f, 108f), "PARSECS", FormatParsecs(parsecs));
+        DrawInfoLine(font, p + new Vector2(0f, 136f), "TARGET", SameSystem(entry.Id, _tunedSystemId) ? "Tuned" : "Not tuned");
         var status = SameSystem(entry.Id, _currentSystemId)
             ? "CURRENT SYSTEM"
             : SameSystem(entry.Id, _tunedSystemId)

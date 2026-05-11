@@ -181,6 +181,7 @@ public partial class GameRoot : Node2D
         _starMap = new StarMapOverlay();
         _starMap.CloseRequested += OnStarMapClosed;
         _starMap.ConfirmTargetRequested += TuneWarpTarget;
+        _starMap.ResetTargetRequested += ResetWarpTarget;
         canvas.AddChild(_starMap);
         SyncStarMapData();
         AddChild(canvas);
@@ -455,6 +456,14 @@ public partial class GameRoot : Node2D
         GD.Print($"Warp engine tuned: {target.DisplayName} ({target.Id}).");
     }
 
+    private void ResetWarpTarget()
+    {
+        _warpTargetSystemId = string.Empty;
+        _hud.SetWarpTarget(string.Empty);
+        SyncStarMapData();
+        GD.Print("Warp engine target reset.");
+    }
+
     private void SyncStarMapData()
     {
         if (_starMap is null)
@@ -532,7 +541,8 @@ public partial class GameRoot : Node2D
                 system?.Planets.Count ?? entry.PlanetCount,
                 system is null ? Array.Empty<StarMapPlanetEntry>() : BuildStarMapPlanets(system.Planets),
                 entry.Source,
-                entry.File));
+                entry.File,
+                entry.ParsecPosition));
         }
 
         return entries;
@@ -581,11 +591,74 @@ public partial class GameRoot : Node2D
                         ? BuildStarMapPlanets(_currentSystem.Planets)
                         : BuildFixturePlanets(sectorIndex, systemIndex, 1 + (sectorIndex * 7 + systemIndex * 5) % 12),
                     isCurrent ? "current" : "fixture",
-                    string.Empty));
+                    string.Empty,
+                    FixtureParsecPosition(sectorIndex, systemIndex, sectorCount)));
             }
         }
 
         return entries;
+    }
+
+    private static Vector2 FixtureParsecPosition(int sectorIndex, int systemIndex, int sectorCount)
+    {
+        var columns = Math.Clamp((int)MathF.Round(MathF.Sqrt(Math.Max(1, sectorCount) * 2.2f)), 1, Math.Max(1, sectorCount));
+        var sectorColumn = sectorIndex % columns;
+        var sectorRow = sectorIndex / columns;
+        var origin = new Vector2(sectorColumn * 52f, sectorRow * 52f);
+        var radius = 0;
+        var remaining = systemIndex;
+        while (remaining > 0)
+        {
+            radius++;
+            remaining -= radius * 6;
+        }
+
+        if (systemIndex == 0)
+        {
+            return origin;
+        }
+
+        var ringStart = 1;
+        for (var r = 1; r < radius; r++)
+        {
+            ringStart += r * 6;
+        }
+
+        var offset = systemIndex - ringStart;
+        var axial = new Vector2I(radius, 0);
+        var directions = new[]
+        {
+            new Vector2I(0, 1),
+            new Vector2I(-1, 1),
+            new Vector2I(-1, 0),
+            new Vector2I(0, -1),
+            new Vector2I(1, -1),
+            new Vector2I(1, 0)
+        };
+
+        foreach (var direction in directions)
+        {
+            for (var step = 0; step < radius; step++)
+            {
+                if (offset <= 0)
+                {
+                    return origin + AxialToParsec(axial);
+                }
+
+                axial += direction;
+                offset--;
+            }
+        }
+
+        return origin + AxialToParsec(axial);
+    }
+
+    private static Vector2 AxialToParsec(Vector2I axial)
+    {
+        const float step = 10f;
+        return new Vector2(
+            step * (axial.X + axial.Y * 0.5f),
+            step * MathF.Sqrt(3f) * 0.5f * axial.Y);
     }
 
     private static IReadOnlyList<StarMapPlanetEntry> BuildStarMapPlanets(IReadOnlyList<PlanetDefinition> planets)
@@ -809,11 +882,13 @@ public partial class GameRoot : Node2D
 
         _currentSystem = system;
         _generatedSystemIndex = generatedIndex;
+        _warpTargetSystemId = string.Empty;
         ApplyStarSystemPhysics(system);
         ResetSimulationForActiveSystem(SystemArrivalPosition, SystemArrivalRotation);
         ClearTransientVisualState();
         _background.SetSystem(system);
         _hud.SetSystem(system);
+        _hud.SetWarpTarget(string.Empty);
         SyncStarMapData();
         UpdateVisuals(0.0, _snapshot, SnapshotTimeSeconds(_snapshot));
         GD.Print($"Star system: {system.DisplayName} ({system.Star.DisplayName}, {system.Planets.Count} planets, background {system.Background.DisplayName}).");

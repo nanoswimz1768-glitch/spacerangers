@@ -16,7 +16,8 @@ public sealed record StarMapSystemEntry(
     int PlanetCount,
     IReadOnlyList<StarMapPlanetEntry> Planets,
     string Source,
-    string File);
+    string File,
+    Vector2 ParsecPosition = default);
 
 public sealed record StarMapPlanetEntry(
     string DisplayName,

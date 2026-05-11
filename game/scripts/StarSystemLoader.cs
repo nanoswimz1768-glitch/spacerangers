@@ -105,7 +105,15 @@ public static class StarSystemLoader
             GetInt(system, "planetCount", 0),
             sectorId,
             sectorName,
-            GetString(system, "source", "generated"));
+            GetString(system, "source", "generated"),
+            GetParsecPosition(system));
+    }
+
+    private static Vector2 GetParsecPosition(JsonElement element)
+    {
+        return new Vector2(
+            GetSingle(element, "parsecX", 0f),
+            GetSingle(element, "parsecY", 0f));
     }
 
     private static string? ReadAllText(string path)
@@ -316,4 +324,5 @@ public sealed record StarSystemIndexEntry(
     int PlanetCount,
     string SectorId = "",
     string SectorName = "",
-    string Source = "generated");
+    string Source = "generated",
+    Vector2 ParsecPosition = default);

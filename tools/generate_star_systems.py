@@ -15,6 +15,8 @@ DEFAULT_PROMPT_OUT = ROOT / "tools" / "generated" / "imagegen_prompts.jsonl"
 SOL_BACKGROUND_TEXTURE_ALPHA = 1.0
 SOL_BACKGROUND_TEXTURE_PARALLAX = 0.08
 SOL_BACKGROUND_STAR_PARALLAX = 0.32
+INTRA_SECTOR_PARSEC_STEP = 10.0
+SECTOR_PARSEC_PITCH = 52.0
 
 
 def main() -> None:
@@ -165,15 +167,19 @@ def generate_galaxy(
     ]
     used_sector_ids.add(starting_sector_id)
     sectors.append(
-        generate_sector(
-            catalog,
-            starting_sector_id,
-            starting_sector_name,
-            starting_generated_count,
-            rng,
-            used_names,
-            include_sol=True,
-            star_sequence=starting_star_sequence,
+        assign_sector_parsec_positions(
+            generate_sector(
+                catalog,
+                starting_sector_id,
+                starting_sector_name,
+                starting_generated_count,
+                rng,
+                used_names,
+                include_sol=True,
+                star_sequence=starting_star_sequence,
+            ),
+            0,
+            sector_count,
         )
     )
 
@@ -189,15 +195,19 @@ def generate_galaxy(
         sector_id = unique_sector_id(sector_name, used_sector_ids)
         generated_count = rng.randint(sector_min, sector_max)
         sectors.append(
-            generate_sector(
-                catalog,
-                sector_id,
-                sector_name,
-                generated_count,
-                rng,
-                used_names,
-                include_sol=False,
-                star_sequence=[],
+            assign_sector_parsec_positions(
+                generate_sector(
+                    catalog,
+                    sector_id,
+                    sector_name,
+                    generated_count,
+                    rng,
+                    used_names,
+                    include_sol=False,
+                    star_sequence=[],
+                ),
+                sector_index - 1,
+                sector_count,
             )
         )
 
@@ -229,12 +239,16 @@ def generate_highres_coverage_galaxy(catalog: dict[str, Any], seed: int) -> dict
     return {
         "startingSectorId": starting_sector_id,
         "sectors": [
-            generate_highres_coverage_sector(
-                catalog,
-                starting_sector_id,
-                starting_sector_name,
-                rng,
-                used_names,
+            assign_sector_parsec_positions(
+                generate_highres_coverage_sector(
+                    catalog,
+                    starting_sector_id,
+                    starting_sector_name,
+                    rng,
+                    used_names,
+                ),
+                0,
+                1,
             )
         ],
     }
@@ -260,17 +274,21 @@ def generate_highres_planet_showcase_galaxy(catalog: dict[str, Any], seed: int) 
     return {
         "startingSectorId": starting_sector_id,
         "sectors": [
-            {
-                "id": starting_sector_id,
-                "name": starting_sector_name,
-                "isStartingSector": True,
-                "systemCount": 2,
-                "systems": [
-                    sol_index_entry(starting_sector_id, starting_sector_name),
-                    generated_system_index_entry(system),
-                ],
-                "generatedSystems": [system],
-            }
+            assign_sector_parsec_positions(
+                {
+                    "id": starting_sector_id,
+                    "name": starting_sector_name,
+                    "isStartingSector": True,
+                    "systemCount": 2,
+                    "systems": [
+                        sol_index_entry(starting_sector_id, starting_sector_name),
+                        generated_system_index_entry(system),
+                    ],
+                    "generatedSystems": [system],
+                },
+                0,
+                1,
+            )
         ],
     }
 
@@ -392,6 +410,85 @@ def build_galaxy_index(galaxy: dict[str, Any], seed: int) -> dict[str, Any]:
     }
 
 
+def assign_sector_parsec_positions(
+    sector: dict[str, Any],
+    sector_index: int,
+    sector_count: int,
+) -> dict[str, Any]:
+    systems = sector["systems"]
+    generated_by_id = {
+        system["id"]: system
+        for system in sector.get("generatedSystems", [])
+    }
+    origin = sector_parsec_origin(sector_index, sector_count)
+    local_positions = local_parsec_positions(len(systems))
+
+    for index, system in enumerate(systems):
+        local = local_positions[index]
+        parsec_x = round(origin[0] + local[0], 2)
+        parsec_y = round(origin[1] + local[1], 2)
+        system["parsecX"] = parsec_x
+        system["parsecY"] = parsec_y
+
+        generated = generated_by_id.get(system["id"])
+        if generated is not None:
+            generated["parsecX"] = parsec_x
+            generated["parsecY"] = parsec_y
+
+    return sector
+
+
+def sector_parsec_origin(sector_index: int, sector_count: int) -> tuple[float, float]:
+    if sector_index <= 0:
+        return (0.0, 0.0)
+
+    columns, _ = galaxy_sector_grid(sector_count)
+    row = sector_index // columns
+    column = sector_index % columns
+    return (
+        column * SECTOR_PARSEC_PITCH,
+        row * SECTOR_PARSEC_PITCH,
+    )
+
+
+def galaxy_sector_grid(sector_count: int) -> tuple[int, int]:
+    aspect = 2.2
+    columns = max(1, min(sector_count, round(math.sqrt(sector_count * aspect))))
+    rows = max(1, math.ceil(sector_count / columns))
+    return columns, rows
+
+
+def local_parsec_positions(count: int) -> list[tuple[float, float]]:
+    if count <= 0:
+        return []
+
+    axial_positions = [(0, 0)]
+    radius = 1
+    while len(axial_positions) < count:
+        axial = (radius, 0)
+        directions = [(0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1), (1, 0)]
+        for direction in directions:
+            for _ in range(radius):
+                if len(axial_positions) >= count:
+                    break
+                axial_positions.append(axial)
+                axial = (axial[0] + direction[0], axial[1] + direction[1])
+            if len(axial_positions) >= count:
+                break
+        radius += 1
+
+    return [
+        axial_to_parsec(q, r)
+        for q, r in axial_positions[:count]
+    ]
+
+
+def axial_to_parsec(q: int, r: int) -> tuple[float, float]:
+    x = INTRA_SECTOR_PARSEC_STEP * (q + r * 0.5)
+    y = INTRA_SECTOR_PARSEC_STEP * math.sqrt(3.0) * 0.5 * r
+    return (x, y)
+
+
 def sol_index_entry(sector_id: str, sector_name: str) -> dict[str, Any]:
     return {
         "id": "sol",
@@ -403,6 +500,8 @@ def sol_index_entry(sector_id: str, sector_name: str) -> dict[str, Any]:
         "starArchetype": "yellow_main_sequence",
         "backgroundArchetype": "sol_nebula",
         "planetCount": 8,
+        "parsecX": 0.0,
+        "parsecY": 0.0,
         "file": "",
     }
 
@@ -418,6 +517,8 @@ def generated_system_index_entry(system: dict[str, Any]) -> dict[str, Any]:
         "starArchetype": system["star"]["archetype"],
         "backgroundArchetype": system["background"]["archetype"],
         "planetCount": len(system["planets"]),
+        "parsecX": float(system.get("parsecX", 0.0)),
+        "parsecY": float(system.get("parsecY", 0.0)),
         "file": f"res://assets/generated/systems/{system['id']}.json",
     }
 

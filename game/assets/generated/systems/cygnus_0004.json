@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 2,
+  "id": "cygnus_0004",
+  "name": "Talas Sola",
+  "sectorId": "cygnus",
+  "sectorName": "Cygnus",
+  "seed": 474095675,
+  "star": {
+    "archetype": "neutron_like",
+    "displayName": "Neutron-Like Remnant",
+    "textureSet": "generated_highres_neutron_like_01",
+    "texturePath": "res://assets/generated/stars/neutron_like_01.png",
+    "frameDirectory": "res://assets/generated/star_frames/neutron_like_01",
+    "framePrefix": "sun_",
+    "frameCount": 96,
+    "source": "imagegen_direct_highres",
+    "worldSize": 500.54,
+    "diskTint": "#bfe8ff",
+    "coronaColor": "#5aa7ff",
+    "coronaIntensity": 1.186,
+    "animationSpeed": 1.76,
+    "mapColor": "#5aa7ff"
+  },
+  "background": {
+    "archetype": "teal_nebula_shelf",
+    "displayName": "Teal Nebula Shelf",
+    "textureSet": "generated_highres_teal_nebula_shelf_01",
+    "texturePath": "res://assets/generated/background_tiles/teal_nebula_shelf_01_tile.png",
+    "source": "imagegen_solstyle_highres_tile",
+    "textureTint": "#5bd0d6",
+    "textureAlpha": 1.0,
+    "textureParallax": 0.08,
+    "starParallax": 0.32,
+    "starfieldSeed": 1010833521,
+    "starCount": 1052,
+    "nebulaSeed": 76861506,
+    "nebulaBlobCount": 34,
+    "dustDensity": 0.212,
+    "nebulaPalette": [
+      "#123d42",
+      "#16545a",
+      "#203450",
+      "#30223a",
+      "#101828",
+      "#152844"
+    ]
+  },
+  "planets": [
+    {
+      "id": "talas_sola_1",
+      "name": "Talas Sola I",
+      "archetype": "cold_gas_giant",
+      "zone": "outer",
+      "surfaceMap": "res://assets/generated/planet_surfaces/cold_gas_giant_01.png",
+      "source": "processed_planet_surface",
+      "orbitRadius": 4337.37,
+      "bodyRadius": 205.22,
+      "referenceTextureWorldSize": 410.44,
+      "textureWorldSize": 410.44,
+      "orbitPeriodSeconds": 225.85,
+      "rotationPeriodSeconds": 8.92,
+      "initialAngle": 3.1852,
+      "mapColor": "#4188ff",
+      "visual": {
+        "atmosphereColor": "#a2d8ff",
+        "atmosphereStrength": 0.2833,
+        "rotationSpeed": 0.03275,
+        "flowStrength": 0.00462,
+        "contrast": 0.938,
+        "saturation": 1.075,
+        "glowStrength": 0.979,
+        "rings": {
+          "profile": "thin_ice",
+          "innerRadiusFactor": 0.62,
+          "outerRadiusFactor": 0.9,
+          "flattening": 0.22,
+          "rotation": -0.3684,
+          "alpha": 0.609,
+          "color": "#8fb7c8",
+          "accentColor": "#e6fbff"
+        }
+      }
+    }
+  ],
+  "parsecX": 114.0,
+  "parsecY": 17.32
+}

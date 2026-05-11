@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 2,
+  "id": "cygnus_0002",
+  "name": "Nara Solai",
+  "sectorId": "cygnus",
+  "sectorName": "Cygnus",
+  "seed": 1546099515,
+  "star": {
+    "archetype": "white_dwarf",
+    "displayName": "White Dwarf",
+    "textureSet": "generated_highres_white_dwarf_01",
+    "texturePath": "res://assets/generated/stars/white_dwarf_01.png",
+    "frameDirectory": "res://assets/generated/star_frames/white_dwarf_01",
+    "framePrefix": "sun_",
+    "frameCount": 96,
+    "source": "imagegen_direct_highres",
+    "worldSize": 636.11,
+    "diskTint": "#f3fbff",
+    "coronaColor": "#b9e8ff",
+    "coronaIntensity": 0.685,
+    "animationSpeed": 0.685,
+    "mapColor": "#b9e8ff"
+  },
+  "background": {
+    "archetype": "violet_rift",
+    "displayName": "Violet Rift",
+    "textureSet": "generated_highres_violet_rift_01",
+    "texturePath": "res://assets/generated/background_tiles/violet_rift_01_tile.png",
+    "source": "imagegen_solstyle_highres_tile",
+    "textureTint": "#a878ff",
+    "textureAlpha": 1.0,
+    "textureParallax": 0.08,
+    "starParallax": 0.32,
+    "starfieldSeed": 855599983,
+    "starCount": 861,
+    "nebulaSeed": 745160786,
+    "nebulaBlobCount": 26,
+    "dustDensity": 0.258,
+    "nebulaPalette": [
+      "#241446",
+      "#3a1d5c",
+      "#172c4a",
+      "#431c3d",
+      "#17202d",
+      "#1d2e38"
+    ]
+  },
+  "planets": [
+    {
+      "id": "nara_solai_1",
+      "name": "Nara Solai I",
+      "archetype": "toxic",
+      "zone": "habitable",
+      "surfaceMap": "res://assets/generated/planet_surfaces/toxic_01.png",
+      "source": "processed_planet_surface",
+      "orbitRadius": 1448.84,
+      "bodyRadius": 173.05,
+      "referenceTextureWorldSize": 346.09,
+      "textureWorldSize": 346.09,
+      "orbitPeriodSeconds": 42.69,
+      "rotationPeriodSeconds": 12.08,
+      "initialAngle": 0.2883,
+      "mapColor": "#63c978",
+      "visual": {
+        "atmosphereColor": "#d0f05a",
+        "atmosphereStrength": 0.2699,
+        "rotationSpeed": 0.01579,
+        "flowStrength": 0.00679,
+        "contrast": 1.131,
+        "saturation": 1.294,
+        "glowStrength": 1.06,
+        "rings": null
+      }
+    },
+    {
+      "id": "nara_solai_2",
+      "name": "Nara Solai II",
+      "archetype": "warm_gas_giant",
+      "zone": "outer",
+      "surfaceMap": "res://assets/generated/planet_surfaces/warm_gas_giant_01.png",
+      "source": "processed_planet_surface",
+      "orbitRadius": 3605.13,
+      "bodyRadius": 260.81,
+      "referenceTextureWorldSize": 521.61,
+      "textureWorldSize": 521.61,
+      "orbitPeriodSeconds": 165.06,
+      "rotationPeriodSeconds": 3.54,
+      "initialAngle": 5.5969,
+      "mapColor": "#e8a464",
+      "visual": {
+        "atmosphereColor": "#ff9d52",
+        "atmosphereStrength": 0.1098,
+        "rotationSpeed": 0.03086,
+        "flowStrength": 0.00778,
+        "contrast": 1.091,
+        "saturation": 1.035,
+        "glowStrength": 0.711,
+        "rings": {
+          "profile": "broad_amber",
+          "innerRadiusFactor": 0.55,
+          "outerRadiusFactor": 0.98,
+          "flattening": 0.3,
+          "rotation": -0.27,
+          "alpha": 0.874,
+          "color": "#c7ad78",
+          "accentColor": "#fff0b4"
+        }
+      }
+    }
+  ],
+  "parsecX": 114.0,
+  "parsecY": 0.0
+}

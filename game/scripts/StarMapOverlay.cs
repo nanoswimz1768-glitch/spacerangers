@@ -11,7 +11,7 @@ public partial class StarMapOverlay : Control
     private const float SidePanelWidth = 324f;
     private const float HeaderHeight = 48f;
     private const float FooterHeight = 54f;
-    private const float SectorGap = 18f;
+    private const float SectorGap = 0f;
     private const float SystemHitRadius = 14f;
     private const string MapBackdropPath = "res://assets/generated/background_tiles/cold_blue_void_01_tile.png";
 
@@ -291,7 +291,7 @@ public partial class StarMapOverlay : Control
         var aspect = Math.Max(0.5f, _mapRect.Size.X / Math.Max(1f, _mapRect.Size.Y));
         var columns = sectorCount == 1
             ? 1
-            : Math.Max(1, (int)MathF.Ceiling(MathF.Sqrt(sectorCount * aspect)));
+            : Math.Clamp((int)MathF.Round(MathF.Sqrt(sectorCount * aspect)), 1, sectorCount);
         var rows = Math.Max(1, (int)MathF.Ceiling(sectorCount / (float)columns));
         var cellSize = new Vector2(
             (_mapRect.Size.X - SectorGap * (columns - 1)) / columns,
@@ -311,17 +311,20 @@ public partial class StarMapOverlay : Control
             var cell = new Rect2(
                 _mapRect.Position + new Vector2(column * (cellSize.X + SectorGap), row * (cellSize.Y + SectorGap)),
                 cellSize);
-            var sectorInset = Math.Clamp(minCell * 0.035f, 2f, 8f);
-            var sectorRect = cell.Grow(-sectorInset);
+            var sectorRect = cell;
             var sectorName = string.IsNullOrWhiteSpace(group[0].SectorName) ? group[0].SectorId : group[0].SectorName;
             var sectorShape = ShapeForSector(group[0].SectorId, group.Length, minCell);
+            var hasLeftNeighbor = column > 0;
+            var hasTopNeighbor = row > 0;
+            var hasRightNeighbor = groupIndex + 1 < groups.Length && column + 1 < columns;
+            var hasBottomNeighbor = groupIndex + columns < groups.Length;
             var sectorLayout = new SectorLayout(
                 group[0].SectorId,
                 sectorName,
                 sectorRect,
                 group.Length,
                 sectorShape,
-                BuildSectorPolygon(sectorRect, group[0].SectorId, sectorShape));
+                BuildMosaicPolygon(sectorRect, hasLeftNeighbor, hasTopNeighbor, hasRightNeighbor, hasBottomNeighbor));
             _sectorLayouts[SectorKey(group[0])] = sectorLayout;
             LayoutSystemsInSector(group, sectorLayout);
         }
@@ -343,6 +346,8 @@ public partial class StarMapOverlay : Control
         var rows = Math.Max(1, (int)MathF.Ceiling(count / (float)columns));
         var cell = new Vector2(inner.Size.X / columns, inner.Size.Y / rows);
         var fontSize = _systemFontSize;
+        var titleRect = SectorTitleRect(sector);
+        var occupied = new List<Rect2>();
 
         for (var index = 0; index < count; index++)
         {
@@ -356,8 +361,11 @@ public partial class StarMapOverlay : Control
             var clampInset = Math.Clamp(sectorMin * 0.10f, 2f, 22f);
             position = ClampToRect(position, sector.Rect.Grow(-clampInset));
             position = MoveInsidePolygon(position, sector.Rect.GetCenter(), sector.Polygon);
+            position = MovePointAwayFromRect(position, titleRect.Grow(12f), sector.Rect.Grow(-clampInset), sector.Polygon, entry.Id);
             var starRadius = StarRadius(entry);
-            var labelRect = LabelRectFor(entry.DisplayName, position, starRadius, fontSize, sector.Rect);
+            var labelRect = LabelRectFor(entry.DisplayName, position, starRadius, fontSize, sector.Rect, titleRect, occupied);
+            occupied.Add(new Rect2(position - Vector2.One * (starRadius + 6f), Vector2.One * (starRadius * 2f + 12f)));
+            occupied.Add(labelRect.Grow(3f));
             _layouts.Add(new SystemLayout(entry, sector, position, starRadius, labelRect, !_compactSystemLabels));
         }
 
@@ -422,20 +430,46 @@ public partial class StarMapOverlay : Control
         }
     }
 
-    private Rect2 LabelRectFor(string text, Vector2 star, float starRadius, int fontSize, Rect2 bounds)
+    private Rect2 LabelRectFor(string text, Vector2 star, float starRadius, int fontSize, Rect2 bounds, Rect2 avoid, IReadOnlyList<Rect2> occupied)
     {
         var font = GetThemeDefaultFont();
         var width = font?.GetStringSize(text, HorizontalAlignment.Left, -1f, fontSize).X ?? text.Length * fontSize * 0.55f;
-        var maxWidth = _compactSystemLabels ? 86f : 132f;
-        width = Math.Clamp(width, 28f, maxWidth);
-        var height = fontSize + 5f;
-        var offset = star.X > bounds.GetCenter().X
-            ? new Vector2(-width - starRadius - 13f, -height * 0.5f)
-            : new Vector2(starRadius + 13f, -height * 0.5f);
-        var position = star + offset;
-        position.X = Math.Clamp(position.X, bounds.Position.X + 8f, bounds.End.X - width - 8f);
-        position.Y = Math.Clamp(position.Y, bounds.Position.Y + 8f, bounds.End.Y - height - 8f);
-        return new Rect2(position, new Vector2(width, height));
+        var maxWidth = _compactSystemLabels ? 96f : 150f;
+        width = Math.Clamp(width + 2f, 34f, maxWidth);
+        var height = fontSize + 7f;
+        var size = new Vector2(width, height);
+        var centerBias = star.X > bounds.GetCenter().X ? -1f : 1f;
+        var candidates = new[]
+        {
+            new Vector2(centerBias * (starRadius + 13f), -height * 0.5f),
+            new Vector2(-centerBias * (width + starRadius + 13f), -height * 0.5f),
+            new Vector2(-width * 0.5f, -starRadius - height - 10f),
+            new Vector2(-width * 0.5f, starRadius + 10f),
+            new Vector2(centerBias * (starRadius + 10f), -starRadius - height - 8f),
+            new Vector2(centerBias * (starRadius + 10f), starRadius + 8f),
+            new Vector2(-centerBias * (width + starRadius + 10f), -starRadius - height - 8f),
+            new Vector2(-centerBias * (width + starRadius + 10f), starRadius + 8f)
+        };
+
+        Rect2? bestRect = null;
+        var bestPenalty = float.MaxValue;
+        foreach (var offset in candidates)
+        {
+            var rect = ClampRectToBounds(new Rect2(star + offset, size), bounds.Grow(-8f));
+            var penalty = OverlapPenalty(rect, avoid, occupied);
+            if (penalty <= 0.001f)
+            {
+                return rect;
+            }
+
+            if (penalty < bestPenalty)
+            {
+                bestPenalty = penalty;
+                bestRect = rect;
+            }
+        }
+
+        return bestRect ?? ClampRectToBounds(new Rect2(star + candidates[0], size), bounds.Grow(-8f));
     }
 
     private void DrawFrame()
@@ -543,7 +577,7 @@ public partial class StarMapOverlay : Control
             DrawColoredPolygon(sector.Polygon, SectorFill(sector.Id));
             for (var i = 0; i < sector.Polygon.Length; i++)
             {
-                DrawLine(sector.Polygon[i], sector.Polygon[(i + 1) % sector.Polygon.Length], SectorLine(sector.Id), 1.1f, true);
+                DrawLine(sector.Polygon[i], sector.Polygon[(i + 1) % sector.Polygon.Length], SectorLine(sector.Id), 1.35f, true);
             }
 
             if (_sectorFontSize < 9 || sector.Rect.Size.X < 64f || sector.Rect.Size.Y < 48f)
@@ -562,13 +596,12 @@ public partial class StarMapOverlay : Control
                     HorizontalAlignment.Left,
                     sector.Rect.Size.X - 16f,
                     _sectorFontSize,
-                    new Color(0.68f, 0.92f, 1f, 0.48f));
+                    new Color(0.68f, 0.92f, 1f, 0.64f));
                 continue;
             }
 
-            var center = sector.Rect.GetCenter();
-            var width = font?.GetStringSize(name, HorizontalAlignment.Left, -1f, _sectorFontSize).X ?? name.Length * _sectorFontSize * 0.55f;
-            DrawString(font, PixelSnap(center - new Vector2(width * 0.5f, 4f)), name, HorizontalAlignment.Left, -1f, _sectorFontSize, new Color(0.62f, 0.82f, 0.90f, 0.16f));
+            var titleRect = SectorTitleRect(sector);
+            DrawMapText(font, titleRect.Position + new Vector2(0f, _sectorFontSize), name, titleRect.Size.X, _sectorFontSize, new Color(0.66f, 0.86f, 0.96f, 0.34f));
         }
     }
 
@@ -658,16 +691,7 @@ public partial class StarMapOverlay : Control
                     : isSelected
                         ? new Color(0.72f, 1f, 0.94f, 0.98f)
                         : new Color(0.68f, 0.90f, 1f, 0.88f);
-                if (isCurrent || isTarget || isSelected || isHovered)
-                {
-                    DrawRect(layout.LabelRect.Grow(3f), new Color(0f, 0.018f, 0.030f, 0.58f), true);
-                }
-                else
-                {
-                    DrawRect(layout.LabelRect.Grow(2f), new Color(0f, 0.018f, 0.030f, 0.26f), true);
-                }
-
-                DrawTextWithShadow(font, layout.LabelRect.Position + new Vector2(0f, fontSize), TrimLabel(layout.Entry.DisplayName), layout.LabelRect.Size.X, fontSize, textColor);
+                DrawMapText(font, layout.LabelRect.Position + new Vector2(0f, fontSize), TrimLabel(layout.Entry.DisplayName), layout.LabelRect.Size.X, fontSize, textColor);
             }
         }
     }
@@ -721,6 +745,17 @@ public partial class StarMapOverlay : Control
     private void DrawTextWithShadow(Font? font, Vector2 position, string text, float width, int fontSize, Color color)
     {
         var snapped = PixelSnap(position);
+        DrawString(font, snapped, text, HorizontalAlignment.Left, width, fontSize, color);
+    }
+
+    private void DrawMapText(Font? font, Vector2 position, string text, float width, int fontSize, Color color)
+    {
+        var snapped = PixelSnap(position);
+        var outline = new Color(0f, 0.012f, 0.020f, Math.Clamp(color.A * 0.92f, 0f, 0.86f));
+        DrawString(font, snapped + new Vector2(-1f, 0f), text, HorizontalAlignment.Left, width, fontSize, outline);
+        DrawString(font, snapped + new Vector2(1f, 0f), text, HorizontalAlignment.Left, width, fontSize, outline);
+        DrawString(font, snapped + new Vector2(0f, -1f), text, HorizontalAlignment.Left, width, fontSize, outline);
+        DrawString(font, snapped + new Vector2(0f, 1f), text, HorizontalAlignment.Left, width, fontSize, outline);
         DrawString(font, snapped, text, HorizontalAlignment.Left, width, fontSize, color);
     }
 
@@ -965,6 +1000,59 @@ public partial class StarMapOverlay : Control
         };
     }
 
+    private static Vector2[] BuildMosaicPolygon(Rect2 rect, bool hasLeftNeighbor, bool hasTopNeighbor, bool hasRightNeighbor, bool hasBottomNeighbor)
+    {
+        var minSide = MathF.Min(rect.Size.X, rect.Size.Y);
+        var notch = Math.Clamp(minSide * 0.045f, 8f, 24f);
+        var topLeft = rect.Position;
+        var topRight = new Vector2(rect.End.X, rect.Position.Y);
+        var bottomRight = rect.End;
+        var bottomLeft = new Vector2(rect.Position.X, rect.End.Y);
+        var points = new List<Vector2>(8) { topLeft };
+
+        if (hasTopNeighbor)
+        {
+            points.Add(SharedHorizontalBoundaryPoint(rect.Position.X, rect.End.X, rect.Position.Y, notch));
+        }
+
+        points.Add(topRight);
+
+        if (hasRightNeighbor)
+        {
+            points.Add(SharedVerticalBoundaryPoint(rect.End.X, rect.Position.Y, rect.End.Y, notch));
+        }
+
+        points.Add(bottomRight);
+
+        if (hasBottomNeighbor)
+        {
+            points.Add(SharedHorizontalBoundaryPoint(rect.End.X, rect.Position.X, rect.End.Y, notch));
+        }
+
+        points.Add(bottomLeft);
+
+        if (hasLeftNeighbor)
+        {
+            points.Add(SharedVerticalBoundaryPoint(rect.Position.X, rect.End.Y, rect.Position.Y, notch));
+        }
+
+        return points.ToArray();
+    }
+
+    private static Vector2 SharedHorizontalBoundaryPoint(float startX, float endX, float y, float notch)
+    {
+        var midX = (startX + endX) * 0.5f;
+        var offset = HashSigned($"{MathF.Round(midX)}:{MathF.Round(y)}:h", 113) * notch;
+        return new Vector2(midX, y + offset);
+    }
+
+    private static Vector2 SharedVerticalBoundaryPoint(float x, float startY, float endY, float notch)
+    {
+        var midY = (startY + endY) * 0.5f;
+        var offset = HashSigned($"{MathF.Round(x)}:{MathF.Round(midY)}:v", 127) * notch;
+        return new Vector2(x + offset, midY);
+    }
+
     private int SystemFontSize(int sectorCount, float minCell)
     {
         if (sectorCount > 24 || minCell < 120f || _systems.Count > 140)
@@ -979,7 +1067,7 @@ public partial class StarMapOverlay : Control
 
         if (sectorCount > 6 || minCell < 190f || _systems.Count > 36)
         {
-            return 10;
+            return 11;
         }
 
         return _systems.Count switch
@@ -1068,6 +1156,86 @@ public partial class StarMapOverlay : Control
     private static Vector2 PixelSnap(Vector2 point)
     {
         return new Vector2(MathF.Round(point.X), MathF.Round(point.Y));
+    }
+
+    private Rect2 SectorTitleRect(SectorLayout sector)
+    {
+        var font = GetThemeDefaultFont();
+        var name = string.IsNullOrWhiteSpace(sector.Name) ? "UNKNOWN" : sector.Name.ToUpperInvariant();
+        var width = font?.GetStringSize(name, HorizontalAlignment.Left, -1f, _sectorFontSize).X
+            ?? name.Length * _sectorFontSize * 0.58f;
+        width = Math.Clamp(width + 18f, 72f, Math.Max(72f, sector.Rect.Size.X - 34f));
+        var height = _sectorFontSize + 14f;
+        var center = sector.Rect.GetCenter();
+        return new Rect2(
+            PixelSnap(center - new Vector2(width * 0.5f, height * 0.5f)),
+            new Vector2(width, height));
+    }
+
+    private static Vector2 MovePointAwayFromRect(Vector2 point, Rect2 avoid, Rect2 bounds, Vector2[] polygon, string key)
+    {
+        if (!avoid.HasPoint(point))
+        {
+            return point;
+        }
+
+        var direction = point - avoid.GetCenter();
+        if (direction.LengthSquared() < 0.001f)
+        {
+            var angle = Hash01(key, 211) * MathF.Tau;
+            direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+        }
+        else
+        {
+            direction = direction.Normalized();
+        }
+
+        for (var step = 1; step <= 8; step++)
+        {
+            var distance = 18f + step * 12f;
+            var candidate = ClampToRect(point + direction * distance, bounds);
+            candidate = MoveInsidePolygon(candidate, bounds.GetCenter(), polygon);
+            if (!avoid.Grow(4f).HasPoint(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return point;
+    }
+
+    private static Rect2 ClampRectToBounds(Rect2 rect, Rect2 bounds)
+    {
+        if (rect.Size.X >= bounds.Size.X || rect.Size.Y >= bounds.Size.Y)
+        {
+            return new Rect2(bounds.Position, new Vector2(Math.Min(rect.Size.X, bounds.Size.X), Math.Min(rect.Size.Y, bounds.Size.Y)));
+        }
+
+        return new Rect2(
+            new Vector2(
+                Math.Clamp(rect.Position.X, bounds.Position.X, bounds.End.X - rect.Size.X),
+                Math.Clamp(rect.Position.Y, bounds.Position.Y, bounds.End.Y - rect.Size.Y)),
+            rect.Size);
+    }
+
+    private static float OverlapPenalty(Rect2 rect, Rect2 avoid, IReadOnlyList<Rect2> occupied)
+    {
+        var penalty = RectIntersectionArea(rect.Grow(3f), avoid) * 3.0f;
+        foreach (var occupiedRect in occupied)
+        {
+            penalty += RectIntersectionArea(rect.Grow(2f), occupiedRect);
+        }
+
+        return penalty;
+    }
+
+    private static float RectIntersectionArea(Rect2 a, Rect2 b)
+    {
+        var left = Math.Max(a.Position.X, b.Position.X);
+        var top = Math.Max(a.Position.Y, b.Position.Y);
+        var right = Math.Min(a.End.X, b.End.X);
+        var bottom = Math.Min(a.End.Y, b.End.Y);
+        return Math.Max(0f, right - left) * Math.Max(0f, bottom - top);
     }
 
     private static Rect2 CoverSourceRect(Vector2 textureSize, Vector2 targetSize)

@@ -226,7 +226,7 @@ public partial class StarMapOverlay : Control
                 _tunedSystemId = _selected.Id;
             }
 
-            Close();
+            QueueRedraw();
             return true;
         }
 
@@ -706,14 +706,24 @@ public partial class StarMapOverlay : Control
 
     private void DrawWarpRoute()
     {
-        var target = _selected is not null && !SameSystem(_selected.Id, _currentSystemId)
-            ? _selected
-            : _systems.FirstOrDefault(system => SameSystem(system.Id, _tunedSystemId));
-        if (target is null || SameSystem(target.Id, _currentSystemId))
+        var tunedTarget = _systems.FirstOrDefault(system => SameSystem(system.Id, _tunedSystemId));
+        if (tunedTarget is not null && !SameSystem(tunedTarget.Id, _currentSystemId))
+        {
+            DrawWarpRouteTo(tunedTarget, true, -1f);
+        }
+
+        if (_selected is null
+            || SameSystem(_selected.Id, _currentSystemId)
+            || SameSystem(_selected.Id, _tunedSystemId))
         {
             return;
         }
 
+        DrawWarpRouteTo(_selected, false, 1f);
+    }
+
+    private void DrawWarpRouteTo(StarMapSystemEntry target, bool locked, float curveSide)
+    {
         var from = FindLayout(_currentSystemId);
         var to = FindLayout(target.Id);
         if (from.Entry is null || to.Entry is null)
@@ -733,14 +743,14 @@ public partial class StarMapOverlay : Control
         var start = from.Position + direction * (from.StarRadius + 20f);
         var end = to.Position - direction * (to.StarRadius + 18f);
         var routeLength = start.DistanceTo(end);
-        var locked = SameSystem(target.Id, _tunedSystemId);
         var routeColor = locked
             ? new Color(1f, 0.76f, 0.30f, 0.96f)
             : new Color(0.40f, 1f, 0.88f, 0.92f);
         var glowColor = locked
             ? new Color(1f, 0.58f, 0.12f, 0.12f)
             : new Color(0.08f, 0.90f, 1f, 0.12f);
-        var control = (start + end) * 0.5f - normal * Math.Clamp(routeLength * 0.15f, 38f, 92f);
+        var curve = Math.Clamp(routeLength * 0.15f, 38f, 92f) * MathF.Sign(curveSide == 0f ? 1f : curveSide);
+        var control = (start + end) * 0.5f + normal * curve;
         var previous = start;
         for (var i = 1; i <= 42; i++)
         {

@@ -456,6 +456,9 @@ Input actions создаются в `GameRoot.ConfigureInputMap()`.
 - открытая карта ставит gameplay input/симуляцию на паузу, показывает обычный cursor и оставляет фон игры под затемнением;
 - список систем строится из текущего `Sol` и `game/assets/generated/galaxy.json`; полноценный system JSON подгружается только для деталей конкретной generated-системы, без создания runtime nodes/textures для всех систем;
 - системы группируются по сектору, каждая система получает кружок цвета своей звезды, имя, current marker и tuned target marker;
+- левая кнопка мыши по system glyph/label выбирает систему; между current system и выбранной системой рисуется curved dashed warp route;
+- удержание правой кнопки мыши над system glyph/label открывает planet popup со списком планет, цветными маркерами, названиями и типами;
+- правая панель выбранной системы показывает readable star display name, size, corona intensity, animation/motion speed и число планет;
 - сектор может быть разной геометрической формы, но layout выбирает более вместительные формы для плотных секторов, чтобы красота не ломала читаемость;
 - при большом числе секторов карта адаптирует grid, star radius, sector font, system font и плотность подписей; routine labels могут скрываться, но current/tuned/selected/hovered labels остаются видимыми и выбранная система всегда раскрывается в правой панели;
 - layout карты кэшируется и пересчитывается только при изменении списка systems, выбора или viewport size; pulse/redraw не должен каждый кадр пересоздавать sector polygons/layout arrays;
@@ -468,6 +471,15 @@ Input actions создаются в `GameRoot.ConfigureInputMap()`.
 ```
 
 Он нужен только для проверки масштабирования карты при большом числе секторов/систем.
+
+Дополнительные visual-smoke flags:
+
+```powershell
+& ".\tools\run_game.ps1" -- --open-star-map --star-map-select=sol
+& ".\tools\run_game.ps1" -- --open-star-map --star-map-inspect=orion_0001
+```
+
+Они заранее выбирают system или открывают planet popup только для capture/review.
 
 ## Planets And Solar System
 
@@ -623,6 +635,9 @@ Stars:
 - `diagnostics/star_map_mvp_v5/*` - runtime smoke реальной карты с текущими системами;
 - `diagnostics/star_map_dense_fixture_v2/*` - dense fixture 24 sectors x 7 systems для проверки читаемости и отключения второстепенных labels;
 - `diagnostics/star_map_sparse_fixture_v1/*` - sparse fixture для проверки вариативных форм секторов.
+- `diagnostics/star_map_v2_visual_final/*` - Star Map visual pass после улучшения фона, glyphs, typographic panel и star details;
+- `diagnostics/star_map_v2_route_curve/*` - проверка curved dashed route после выбора target system;
+- `diagnostics/star_map_v2_popup_final/*` - проверка right-hold planet popup со списком планет.
 
 ## Star And Sun Rendering
 
@@ -1170,6 +1185,21 @@ dotnet run --project tests/SpaceManagers.PerfSmoke/SpaceManagers.PerfSmoke.cspro
 Godot runtime capture --system=orion_0001 --star-frames=experimental --open-star-map: success, PNG в diagnostics/star_map_mvp_v5/
 Godot runtime capture --star-map-fixture-sectors=24 --star-map-fixture-systems-per-sector=7: success, PNG в diagnostics/star_map_dense_fixture_v2/
 Godot runtime capture --star-map-fixture-sectors=6 --star-map-fixture-systems-per-sector=2: success, PNG в diagnostics/star_map_sparse_fixture_v1/
+```
+
+Последняя проверка после Star Map interaction/visual pass от 2026-05-11:
+
+```text
+StarMapOverlay input moved to explicit _Input/SetInputAsHandled; map clicks no longer depend on _GuiInput routing.
+Left click selects a system and draws curved dashed warp route; OK tunes warp target.
+Right-hold on a star opens planet popup with planet names/types; side panel now shows star display name, size, corona and motion.
+Map background/star glyphs/text shadows refreshed for readability.
+dotnet build game/SpaceManagersPrototype.sln: 0 warnings, 0 errors
+dotnet run --project tests/SpaceManagers.Core.Tests/SpaceManagers.Core.Tests.csproj --no-restore: 39 tests passed
+dotnet run --project tests/SpaceManagers.PerfSmoke/SpaceManagers.PerfSmoke.csproj --no-restore: success
+Godot runtime capture --open-star-map: success, PNG в diagnostics/star_map_v2_visual_final/
+Godot runtime capture --open-star-map --star-map-select=sol: success, PNG в diagnostics/star_map_v2_route_curve/
+Godot runtime capture --open-star-map --star-map-inspect=orion_0001: success, PNG в diagnostics/star_map_v2_popup_final/
 ```
 
 Подозрительные зоны для дальнейшей проверки:

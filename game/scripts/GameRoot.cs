@@ -436,6 +436,7 @@ public partial class GameRoot : Node2D
     {
         SyncStarMapData();
         _starMap.Open();
+        ApplyStarMapDebugArgs();
         _starMapButton.Active = true;
         _starMapButton.QueueRedraw();
     }
@@ -464,6 +465,21 @@ public partial class GameRoot : Node2D
         _starMap.SetSystems(BuildStarMapEntries(), _currentSystem.Id, _warpTargetSystemId);
     }
 
+    private void ApplyStarMapDebugArgs()
+    {
+        var selectedSystem = ReadStringUserArg("--star-map-select", string.Empty);
+        if (!string.IsNullOrWhiteSpace(selectedSystem))
+        {
+            _starMap.SelectSystemById(selectedSystem);
+        }
+
+        var inspectedSystem = ReadStringUserArg("--star-map-inspect", string.Empty);
+        if (!string.IsNullOrWhiteSpace(inspectedSystem))
+        {
+            _starMap.ShowPlanetPopupForSystem(inspectedSystem);
+        }
+    }
+
     private IReadOnlyList<StarMapSystemEntry> BuildStarMapEntries()
     {
         var fixtureSectors = ReadIntUserArg("--star-map-fixture-sectors", 0);
@@ -483,8 +499,13 @@ public partial class GameRoot : Node2D
                 SolarSystem.Sol.SectorId,
                 SolarSystem.Sol.SectorName,
                 SolarSystem.Sol.Star.Archetype,
+                SolarSystem.Sol.Star.DisplayName,
                 SolarSystem.Sol.Star.MapColor,
+                SolarSystem.Sol.Star.WorldSize,
+                SolarSystem.Sol.Star.CoronaIntensity,
+                SolarSystem.Sol.Star.AnimationSpeed,
                 SolarSystem.Sol.Planets.Count,
+                BuildStarMapPlanets(SolarSystem.Sol.Planets),
                 "preset",
                 string.Empty)
         };
@@ -503,8 +524,13 @@ public partial class GameRoot : Node2D
                 FirstNonEmpty(entry.SectorId, system?.SectorId, "unknown"),
                 FirstNonEmpty(entry.SectorName, system?.SectorName, "Unknown"),
                 FirstNonEmpty(entry.StarArchetype, system?.Star.Archetype, "unknown_star"),
+                FirstNonEmpty(system?.Star.DisplayName, HumanizeToken(entry.StarArchetype), "Unknown Star"),
                 system?.Star.MapColor ?? StarMapColorForArchetype(entry.StarArchetype),
+                system?.Star.WorldSize ?? SolarSystem.SunVisualWorldSize,
+                system?.Star.CoronaIntensity ?? 1f,
+                system?.Star.AnimationSpeed ?? 1f,
                 system?.Planets.Count ?? entry.PlanetCount,
+                system is null ? Array.Empty<StarMapPlanetEntry>() : BuildStarMapPlanets(system.Planets),
                 entry.Source,
                 entry.File));
         }
@@ -545,14 +571,101 @@ public partial class GameRoot : Node2D
                     sectorId,
                     sectorName,
                     entryArchetype,
+                    HumanizeToken(entryArchetype),
                     isCurrent ? _currentSystem.Star.MapColor : StarMapColorForArchetype(entryArchetype),
+                    isCurrent ? _currentSystem.Star.WorldSize : SolarSystem.SunVisualWorldSize * (0.82f + ((sectorIndex + systemIndex) % 5) * 0.12f),
+                    isCurrent ? _currentSystem.Star.CoronaIntensity : 0.72f + ((sectorIndex + systemIndex) % 6) * 0.07f,
+                    isCurrent ? _currentSystem.Star.AnimationSpeed : 0.74f + ((sectorIndex * 2 + systemIndex) % 7) * 0.06f,
                     isCurrent ? _currentSystem.Planets.Count : 1 + (sectorIndex * 7 + systemIndex * 5) % 12,
+                    isCurrent
+                        ? BuildStarMapPlanets(_currentSystem.Planets)
+                        : BuildFixturePlanets(sectorIndex, systemIndex, 1 + (sectorIndex * 7 + systemIndex * 5) % 12),
                     isCurrent ? "current" : "fixture",
                     string.Empty));
             }
         }
 
         return entries;
+    }
+
+    private static IReadOnlyList<StarMapPlanetEntry> BuildStarMapPlanets(IReadOnlyList<PlanetDefinition> planets)
+    {
+        return planets
+            .Select(planet => new StarMapPlanetEntry(
+                planet.DisplayName,
+                PlanetArchetypeName(planet),
+                planet.MapColor,
+                planet.OrbitRadius,
+                planet.ReferenceTextureWorldSize,
+                planet.Visual?.Rings is not null))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<StarMapPlanetEntry> BuildFixturePlanets(int sectorIndex, int systemIndex, int count)
+    {
+        var archetypes = new[]
+        {
+            "scorched_rock", "barren_rock", "desert", "volcanic", "ocean", "earthlike",
+            "ice", "toxic", "warm_gas_giant", "cold_gas_giant", "ringed_giant", "shattered_world"
+        };
+        var result = new StarMapPlanetEntry[count];
+        for (var i = 0; i < result.Length; i++)
+        {
+            var archetype = archetypes[(sectorIndex * 5 + systemIndex * 3 + i) % archetypes.Length];
+            result[i] = new StarMapPlanetEntry(
+                $"{HumanizeToken(archetype)} {i + 1}",
+                HumanizeToken(archetype),
+                PlanetMapColorForArchetype(archetype),
+                1200f + i * 520f,
+                180f + ((sectorIndex + systemIndex + i) % 6) * 48f,
+                archetype.Contains("ring", StringComparison.OrdinalIgnoreCase));
+        }
+
+        return result;
+    }
+
+    private static string PlanetArchetypeName(PlanetDefinition planet)
+    {
+        var id = planet.Id;
+        if (id.StartsWith("planet_showcase_", StringComparison.OrdinalIgnoreCase))
+        {
+            return HumanizeToken(id["planet_showcase_".Length..]);
+        }
+
+        return HumanizeToken(id);
+    }
+
+    private static string HumanizeToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return string.Empty;
+        }
+
+        return string.Join(
+            ' ',
+            token.Split('_', '-', StringSplitOptions.RemoveEmptyEntries)
+                .Select(part => part.Length == 0 ? part : char.ToUpperInvariant(part[0]) + part[1..].ToLowerInvariant()));
+    }
+
+    private static Color PlanetMapColorForArchetype(string archetype)
+    {
+        return archetype switch
+        {
+            "scorched_rock" => new Color(0.88f, 0.46f, 0.23f, 1f),
+            "barren_rock" => new Color(0.63f, 0.61f, 0.56f, 1f),
+            "desert" => new Color(0.92f, 0.62f, 0.28f, 1f),
+            "volcanic" => new Color(1f, 0.34f, 0.16f, 1f),
+            "ocean" => new Color(0.18f, 0.58f, 0.95f, 1f),
+            "earthlike" => new Color(0.26f, 0.68f, 1f, 1f),
+            "ice" => new Color(0.70f, 0.93f, 1f, 1f),
+            "toxic" => new Color(0.55f, 0.92f, 0.28f, 1f),
+            "warm_gas_giant" => new Color(0.95f, 0.63f, 0.35f, 1f),
+            "cold_gas_giant" => new Color(0.52f, 0.72f, 1f, 1f),
+            "ringed_giant" => new Color(0.90f, 0.75f, 0.48f, 1f),
+            "shattered_world" => new Color(0.75f, 0.55f, 0.45f, 1f),
+            _ => new Color(0.72f, 0.9f, 1f, 1f)
+        };
     }
 
     private static string FirstNonEmpty(params string?[] values)

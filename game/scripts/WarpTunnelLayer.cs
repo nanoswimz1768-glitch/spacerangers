@@ -10,6 +10,9 @@ public partial class WarpTunnelLayer : Node2D
     private float _phase;
     private float _progress;
     private bool _arriving;
+    private bool _residualActive;
+    private float _residualAge;
+    private float _residualDuration = 1.5f;
     private Texture2D? _portalRingTexture;
     private Texture2D? _sparkleTexture;
     private static readonly Color WarpBaseOuter = new(0.08f, 0.85f, 1f, 1f);
@@ -42,6 +45,17 @@ public partial class WarpTunnelLayer : Node2D
         }
 
         _phase += (float)delta;
+        if (_residualActive)
+        {
+            _residualAge += Math.Max(0f, (float)delta);
+            _progress = Math.Clamp(_progress + (float)delta * 0.12f, 0f, 1f);
+            if (_residualAge >= _residualDuration)
+            {
+                Stop();
+                return;
+            }
+        }
+
         QueueRedraw();
     }
 
@@ -52,7 +66,24 @@ public partial class WarpTunnelLayer : Node2D
         _arriving = arriving;
         _progress = 0f;
         _phase = 0f;
+        _residualActive = false;
+        _residualAge = 0f;
         MouthOffset = new Vector2(0f, -540f);
+        Active = true;
+        Visible = true;
+        QueueRedraw();
+    }
+
+    public void BeginResidual(Color outerColor, Color coreColor, bool arriving, float duration)
+    {
+        _outerColor = Mix(WarpBaseOuter, Saturated(outerColor), 0.50f);
+        _coreColor = Mix(WarpBaseCore, Saturated(coreColor), 0.34f);
+        _arriving = arriving;
+        _progress = 0.62f;
+        _phase = 0f;
+        _residualActive = true;
+        _residualAge = 0f;
+        _residualDuration = Math.Max(0.1f, duration);
         Active = true;
         Visible = true;
         QueueRedraw();
@@ -72,6 +103,8 @@ public partial class WarpTunnelLayer : Node2D
         Active = false;
         Visible = false;
         _progress = 0f;
+        _residualActive = false;
+        _residualAge = 0f;
         QueueRedraw();
     }
 
@@ -85,17 +118,68 @@ public partial class WarpTunnelLayer : Node2D
         var mouth = MouthOffset;
         var open = SmoothStep(0f, 0.18f, _progress);
         var close = 1f - SmoothStep(0.80f, 1f, _progress);
-        var intensity = Math.Clamp(open * close, 0f, 1f);
+        var fade = _residualActive
+            ? MathF.Pow(1f - SmoothStep(0f, _residualDuration, _residualAge), 1.55f)
+            : 1f;
+        var intensity = Math.Clamp(open * close * fade, 0f, 1f);
         var corridor = _arriving
             ? Math.Clamp((0.55f + SmoothStep(0f, 0.22f, _progress) * 0.45f) * close, 0f, 1f)
             : intensity;
+        corridor *= fade;
 
-        DrawWarpSleeve(mouth, corridor);
-        DrawCorridorRings(mouth, corridor);
-        DrawSpeedStreaks(mouth, corridor);
+        DrawVortexTube(mouth, corridor);
+        DrawWarpSleeve(mouth, corridor * 0.62f);
+        DrawCorridorRings(mouth, corridor * 0.46f);
+        DrawSpeedStreaks(mouth, corridor * 0.82f);
         DrawNebulaVortex(mouth, intensity);
         DrawMouth(mouth, intensity);
+        DrawRiftFilaments(mouth, intensity);
         DrawShipEndGlow(mouth, corridor);
+    }
+
+    private void DrawVortexTube(Vector2 mouth, float intensity)
+    {
+        if (intensity <= 0.01f)
+        {
+            return;
+        }
+
+        var strands = 10;
+        var phaseDirection = _arriving ? -1f : 1f;
+        for (var strand = 0; strand < strands; strand++)
+        {
+            var seed = strand * 21.71f + 0.7f;
+            var baseAngle = strand / (float)strands * MathF.Tau + Hash01(seed) * 0.42f;
+            var turns = 1.35f + Hash01(seed + 4.0f) * 1.25f;
+            var color = Mix(_outerColor, _coreColor, 0.12f + Hash01(seed + 2.0f) * 0.66f);
+            var width = 1.6f + Hash01(seed + 5.0f) * 4.2f;
+            var previous = Vector2.Zero;
+            var hasPrevious = false;
+
+            for (var segment = 0; segment <= 42; segment++)
+            {
+                var t = segment / 42f;
+                var travel = SmoothStep(0f, 1f, t);
+                var center = Vector2.Zero.Lerp(mouth, travel);
+                var cone = MathF.Pow(t, 0.72f);
+                var radiusX = Lerp(26f, 176f + Hash01(seed + 11.0f) * 74f, cone);
+                var radiusY = Lerp(8f, 58f + Hash01(seed + 17.0f) * 28f, cone);
+                var angle = baseAngle + t * MathF.Tau * turns + _phase * phaseDirection * (0.55f + Hash01(seed + 8.0f) * 0.35f);
+                var offset = new Vector2(MathF.Cos(angle) * radiusX, MathF.Sin(angle) * radiusY);
+                var point = center + offset;
+
+                if (hasPrevious)
+                {
+                    var fade = SmoothStep(0.02f, 0.18f, t) * (1f - SmoothStep(0.88f, 1f, t));
+                    var alpha = intensity * fade * (0.050f + Hash01(seed + segment * 3.1f) * 0.050f);
+                    DrawLine(previous, point, WithAlpha(color, alpha), width * (0.55f + t * 0.62f), true);
+                    DrawLine(previous.Lerp(point, 0.35f), point, WithAlpha(_coreColor, alpha * 0.25f), Math.Max(0.7f, width * 0.22f), true);
+                }
+
+                previous = point;
+                hasPrevious = true;
+            }
+        }
     }
 
     private void DrawWarpSleeve(Vector2 mouth, float intensity)
@@ -168,7 +252,7 @@ public partial class WarpTunnelLayer : Node2D
 
     private void DrawSpeedStreaks(Vector2 mouth, float intensity)
     {
-        var count = _arriving ? 132 : 118;
+        var count = _arriving ? 108 : 96;
         var speed = _arriving ? -2.3f : 2.55f;
         for (var i = 0; i < count; i++)
         {
@@ -199,40 +283,94 @@ public partial class WarpTunnelLayer : Node2D
 
     private void DrawNebulaVortex(Vector2 mouth, float intensity)
     {
-        for (var i = 0; i < 18; i++)
+        for (var i = 0; i < 20; i++)
         {
             var h = Hash01(i * 41.9f + 2.0f);
-            var angle = i / 18f * MathF.Tau + _phase * (0.32f + h * 0.20f);
+            var angle = i / 20f * MathF.Tau + _phase * (0.28f + h * 0.24f);
             var arm = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-            var radius = 50f + h * 210f;
-            var width = 1.1f + h * 3.6f;
-            var start = mouth + arm * (radius * 0.16f);
-            var end = mouth + arm * radius + new Vector2(-arm.Y, arm.X) * (72f + h * 145f);
-            DrawLine(start, end, WithAlpha(_outerColor, intensity * (0.045f + h * 0.10f)), width, true);
+            var radius = 42f + h * 270f;
+            var width = 1.0f + h * 4.4f;
+            var start = mouth + arm * (radius * 0.08f);
+            var bend = new Vector2(-arm.Y, arm.X) * (92f + h * 220f) * (i % 2 == 0 ? 1f : -1f);
+            var end = mouth + arm * radius + bend;
+            DrawLine(start, end, WithAlpha(Mix(_outerColor, _coreColor, h * 0.42f), intensity * (0.032f + h * 0.085f)), width, true);
         }
     }
 
     private void DrawMouth(Vector2 mouth, float intensity)
     {
         var pulse = 0.5f + 0.5f * MathF.Sin(_phase * 8.4f);
-        var openRadius = 82f + pulse * 12f;
-        DrawCircle(mouth, openRadius * 1.42f, WithAlpha(_outerColor, intensity * 0.10f));
-        DrawCircle(mouth, openRadius * 0.92f, WithAlpha(Mix(_outerColor, _coreColor, 0.42f), intensity * 0.18f));
+        var openRadius = 92f + pulse * 14f;
+        DrawCircle(mouth, openRadius * 2.25f, WithAlpha(_outerColor, intensity * 0.042f));
+        DrawCircle(mouth, openRadius * 1.42f, WithAlpha(Mix(_outerColor, _coreColor, 0.26f), intensity * 0.075f));
+        DrawSpiralBands(mouth, openRadius, intensity);
 
         if (_portalRingTexture is not null)
         {
-            for (var i = 0; i < 3; i++)
+            for (var i = 0; i < 2; i++)
             {
-                var size = (openRadius * (2.0f + i * 0.56f)) * (1f + pulse * 0.035f);
+                var size = (openRadius * (1.78f + i * 0.78f)) * (1f + pulse * 0.035f);
                 DrawSetTransform(mouth, _phase * (i % 2 == 0 ? 0.55f : -0.42f) + i * 0.47f, Vector2.One);
-                DrawTextureRect(_portalRingTexture, new Rect2(new Vector2(-size * 0.5f, -size * 0.5f), new Vector2(size, size)), false, WithAlpha(i == 0 ? _coreColor : _outerColor, intensity * (0.28f - i * 0.055f)));
+                DrawTextureRect(_portalRingTexture, new Rect2(new Vector2(-size * 0.5f, -size * 0.5f), new Vector2(size, size)), false, WithAlpha(i == 0 ? _coreColor : _outerColor, intensity * (0.070f - i * 0.018f)));
                 DrawSetTransform(Vector2.Zero, 0f, Vector2.One);
             }
         }
 
-        DrawCircle(mouth, 58f + pulse * 9f, WithAlpha(_coreColor, intensity * 0.45f));
-        DrawCircle(mouth, 24f + pulse * 5f, WithAlpha(Colors.White, intensity * 0.32f));
+        DrawCircle(mouth, 84f + pulse * 14f, WithAlpha(Mix(_outerColor, _coreColor, 0.52f), intensity * 0.16f));
+        DrawCircle(mouth, 42f + pulse * 8f, WithAlpha(_coreColor, intensity * 0.34f));
+        DrawCircle(mouth, 18f + pulse * 4f, WithAlpha(Colors.White, intensity * 0.30f));
         DrawSparkles(mouth, intensity);
+    }
+
+    private void DrawSpiralBands(Vector2 mouth, float openRadius, float intensity)
+    {
+        for (var band = 0; band < 8; band++)
+        {
+            var seed = band * 15.7f + 3.0f;
+            var color = Mix(_outerColor, _coreColor, 0.16f + Hash01(seed) * 0.58f);
+            var turns = 1.05f + Hash01(seed + 2.0f) * 1.35f;
+            var baseAngle = band / 8f * MathF.Tau + _phase * (0.42f + Hash01(seed + 1.0f) * 0.22f) * (band % 2 == 0 ? 1f : -1f);
+            var previous = mouth + new Vector2(MathF.Cos(baseAngle), MathF.Sin(baseAngle)) * (openRadius * 0.34f);
+
+            for (var segment = 1; segment <= 48; segment++)
+            {
+                var t = segment / 48f;
+                var radius = openRadius * Lerp(0.34f, 2.02f + Hash01(seed + 4.0f) * 0.38f, t);
+                var angle = baseAngle + t * MathF.Tau * turns;
+                var wobble = 1f + MathF.Sin(_phase * 1.4f + t * 12.0f + seed) * 0.045f;
+                var point = mouth + new Vector2(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius * (0.82f + Hash01(seed + 8.0f) * 0.20f)) * wobble;
+                var fade = SmoothStep(0f, 0.16f, t) * (1f - SmoothStep(0.82f, 1f, t));
+                var alpha = intensity * fade * (0.042f + Hash01(seed + segment * 0.67f) * 0.045f);
+                var width = (6.4f - t * 3.8f) * (0.72f + Hash01(seed + 9.0f) * 0.58f);
+                DrawLine(previous, point, WithAlpha(color, alpha), Math.Max(0.8f, width), true);
+                previous = point;
+            }
+        }
+    }
+
+    private void DrawRiftFilaments(Vector2 mouth, float intensity)
+    {
+        if (intensity <= 0.01f)
+        {
+            return;
+        }
+
+        for (var i = 0; i < 24; i++)
+        {
+            var h0 = Hash01(i * 11.73f + 1.0f);
+            var h1 = Hash01(i * 29.37f + 2.0f);
+            var h2 = Hash01(i * 47.91f + 3.0f);
+            var angle = h0 * MathF.Tau + _phase * (0.16f + h2 * 0.12f);
+            var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            var tangent = new Vector2(-direction.Y, direction.X);
+            var start = mouth + direction * (58f + h1 * 56f);
+            var mid = mouth + direction * (150f + h1 * 180f) + tangent * HashSigned(i * 9.1f + _phase) * (34f + h2 * 76f);
+            var end = mouth + direction * (260f + h2 * 260f) + tangent * HashSigned(i * 13.7f) * (60f + h1 * 130f);
+            var color = Mix(_coreColor, _outerColor, 0.36f + h2 * 0.44f);
+            var alpha = intensity * (0.034f + h1 * 0.078f);
+            DrawLine(start, mid, WithAlpha(color, alpha), 0.8f + h2 * 2.4f, true);
+            DrawLine(mid, end, WithAlpha(color, alpha * 0.54f), 0.55f + h2 * 1.6f, true);
+        }
     }
 
     private void DrawSparkles(Vector2 mouth, float intensity)
@@ -346,5 +484,10 @@ public partial class WarpTunnelLayer : Node2D
     {
         var hashed = MathF.Sin(value) * 43758.5453f;
         return hashed - MathF.Floor(hashed);
+    }
+
+    private static float HashSigned(float value)
+    {
+        return Hash01(value) * 2f - 1f;
     }
 }

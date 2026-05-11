@@ -444,10 +444,10 @@ public partial class ShipView : Node2D
         var color = Mix(EngineOuterColor, EngineCoreColor, 0.22f + charge * 0.34f);
         var core = Mix(EngineCoreColor, Colors.White, transit > 0f ? 0.30f : 0.08f);
         var pulse = 0.5f + 0.5f * MathF.Sin(_phase * (0.72f + charge * 0.32f));
-        var ringAlpha = (0.10f + charge * 0.18f + transit * 0.22f) * intensity;
+        var ringAlpha = (0.060f + charge * 0.115f + transit * 0.18f) * intensity;
         var spin = _phase * (0.24f + charge * 0.12f);
 
-        DrawCircle(HitboxLocalCenter, radius * (0.92f + pulse * 0.05f), WithAlpha(color, ringAlpha * 0.18f));
+        DrawCircle(HitboxLocalCenter, radius * (0.92f + pulse * 0.05f), WithAlpha(color, ringAlpha * 0.11f));
         for (var i = 0; i < 4; i++)
         {
             var start = spin + i * MathF.Tau / 4f;
@@ -461,6 +461,8 @@ public partial class ShipView : Node2D
                 1.0f + charge * 1.1f + transit * 1.4f,
                 true);
         }
+
+        DrawWarpConduitPulses(charge, transit, intensity, color, core);
 
         var particleCount = EffectQuality == ShipEffectQuality.Full ? 18 : 10;
         for (var i = 0; i < particleCount; i++)
@@ -481,6 +483,72 @@ public partial class ShipView : Node2D
         if (charge >= 0.98f || transit > 0.01f)
         {
             DrawArc(HitboxLocalCenter, radius * 1.08f, -spin * 1.4f, -spin * 1.4f + MathF.Tau * 0.72f, 72, WithAlpha(core, 0.18f + transit * 0.24f), 1.4f + transit * 1.8f, true);
+        }
+    }
+
+    private void DrawWarpConduitPulses(float charge, float transit, float intensity, Color color, Color core)
+    {
+        var half = HitboxLocalSize * 0.5f;
+        var coreAnchor = _rigProfile.HasRegions ? _rigProfile.CoreAnchor : HitboxLocalCenter + new Vector2(0f, -half.Y * 0.06f);
+        var nose = _rigProfile.HasRegions ? _rigProfile.NoseAnchor : HitboxLocalCenter + new Vector2(0f, -half.Y * 0.76f);
+        var leftRoot = _rigProfile.HasRegions ? _rigProfile.LeftWingRoot : HitboxLocalCenter + new Vector2(-half.X * 0.34f, -half.Y * 0.06f);
+        var rightRoot = _rigProfile.HasRegions ? _rigProfile.RightWingRoot : HitboxLocalCenter + new Vector2(half.X * 0.34f, -half.Y * 0.06f);
+        var leftTip = _rigProfile.HasRegions ? _rigProfile.LeftWingTip : HitboxLocalCenter + new Vector2(-half.X * 0.82f, -half.Y * 0.02f);
+        var rightTip = _rigProfile.HasRegions ? _rigProfile.RightWingTip : HitboxLocalCenter + new Vector2(half.X * 0.82f, -half.Y * 0.02f);
+
+        DrawWarpPulsePath(coreAnchor, nose, 0.11f, charge, transit, intensity, color, core, 1.20f);
+        DrawWarpPulsePath(leftRoot, coreAnchor, 0.29f, charge, transit, intensity, color, core, 0.78f);
+        DrawWarpPulsePath(rightRoot, coreAnchor, 0.47f, charge, transit, intensity, color, core, 0.78f);
+        DrawWarpPulsePath(leftTip, leftRoot, 0.63f, charge, transit, intensity, color, core, 0.54f);
+        DrawWarpPulsePath(rightTip, rightRoot, 0.79f, charge, transit, intensity, color, core, 0.54f);
+
+        var ports = _rigProfile.EnginePorts.Length > 0 ? _rigProfile.EnginePorts : DefaultExhaustPorts;
+        var portCount = Math.Min(ports.Length, DetailCount(4, 3, 2));
+        for (var i = 0; i < portCount; i++)
+        {
+            DrawWarpPulsePath(ports[i].Position, coreAnchor, 0.92f + i * 0.17f, charge, transit, intensity, color, core, 0.92f);
+            DrawCircle(ports[i].Position, ports[i].Radius * (0.92f + charge * 0.40f), WithAlpha(core, intensity * (0.12f + transit * 0.16f)));
+        }
+
+        var noseAlpha = intensity * (0.13f + charge * 0.12f + transit * 0.20f);
+        DrawCircle(nose, Math.Clamp(Math.Min(half.X, half.Y) * (0.10f + charge * 0.045f), 4f, 18f), WithAlpha(core, noseAlpha));
+        DrawCircle(coreAnchor, Math.Clamp(Math.Min(half.X, half.Y) * (0.15f + charge * 0.035f), 7f, 26f), WithAlpha(color, noseAlpha * 0.42f));
+    }
+
+    private void DrawWarpPulsePath(
+        Vector2 from,
+        Vector2 to,
+        float seed,
+        float charge,
+        float transit,
+        float intensity,
+        Color color,
+        Color core,
+        float weight)
+    {
+        var delta = to - from;
+        var length = delta.Length();
+        if (length <= 3f)
+        {
+            return;
+        }
+
+        var baseAlpha = intensity * (0.034f + charge * 0.040f + transit * 0.070f) * weight;
+        DrawLine(from, to, WithAlpha(color, baseAlpha), Math.Max(0.7f, 1.2f * weight), true);
+
+        var pulseCount = DetailCount(3, 2, 1);
+        var speed = 0.074f + charge * 0.030f + transit * 0.070f;
+        for (var i = 0; i < pulseCount; i++)
+        {
+            var headT = Fract(seed + i / (float)Math.Max(1, pulseCount) + _phase * speed);
+            var tailT = Math.Max(0f, headT - (0.11f + transit * 0.035f));
+            var head = LerpVec(from, to, headT);
+            var tail = LerpVec(from, to, tailT);
+            var fade = SmoothStep(0f, 0.14f, headT) * (1f - SmoothStep(0.90f, 1f, headT));
+            var alpha = intensity * fade * (0.30f + charge * 0.28f + transit * 0.35f) * weight;
+            var width = (1.5f + charge * 1.15f + transit * 1.65f) * weight;
+            DrawLine(tail, head, WithAlpha(core, alpha), width, true);
+            DrawCircle(head, Math.Clamp(width * 0.90f, 1.2f, 5.5f), WithAlpha(Mix(core, Colors.White, 0.22f), alpha * 0.62f));
         }
     }
 

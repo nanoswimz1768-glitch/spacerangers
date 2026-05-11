@@ -1437,6 +1437,14 @@ Warp VFX V2 notes:
 - The HUD warp bar is drawn above the bottom panel so it does not overlap the normal navigation status.
 - The locked gold starmap route reuses the same curve side as the cyan preview route, so confirming a target no longer changes the route geometry.
 
+Warp VFX V3 notes:
+
+- `WarpScreenLayer` is a canvas-space warp overlay under the HUD. It darkens the scene during transit, draws radial star-stretch streaks toward the tunnel focus, adds short shockwave flashes on enter/exit, and keeps a brief afterglow after arrival.
+- `WarpTunnelLayer` now favors an organic vortex: helical tube strands, spiral mouth bands, rift filaments, subtle premium ring/sparkle accents, and a fading residual arrival sleeve instead of an instant stop.
+- Warp colors are ship/race-aware via `ShipCatalog.WarpOuterColor()` and `ShipCatalog.WarpCoreColor()`, separate from normal engine thrust colors.
+- `ShipView` calibration VFX now includes moving conduit pulses along inferred rig anchors: engines, wing roots/tips, core, and nose. The old global rings are reduced so the ship looks like it is charging internally, not sitting inside a simple circle.
+- Finish state leaves a 1.5 second fading arrival wake in world and screen space; runtime tunnel transforms are not overwritten by the normal ship update while that residual wake fades.
+
 ## Safe Change Checklist
 
 Перед финальным ответом после правок желательно:

@@ -139,6 +139,34 @@ public static class ShipCatalog
         };
     }
 
+    public static Color WarpOuterColor(string path)
+    {
+        return RaceFromPath(path) switch
+        {
+            "People" => new Color(0.20f, 0.88f, 1f, 1f),
+            "Fei" => new Color(0.95f, 0.28f, 1f, 1f),
+            "Gaal" => new Color(0.10f, 0.58f, 1f, 1f),
+            "Maloc" => new Color(1f, 0.22f, 0.08f, 1f),
+            "Peleng" => new Color(0.78f, 1f, 0.16f, 1f),
+            "Klissan" => new Color(0.02f, 0.92f, 0.68f, 1f),
+            _ => new Color(0.08f, 0.85f, 1f, 1f),
+        };
+    }
+
+    public static Color WarpCoreColor(string path)
+    {
+        return RaceFromPath(path) switch
+        {
+            "People" => new Color(0.92f, 0.98f, 1f, 1f),
+            "Fei" => new Color(0.82f, 0.84f, 1f, 1f),
+            "Gaal" => new Color(0.70f, 0.98f, 1f, 1f),
+            "Maloc" => new Color(1f, 0.74f, 0.42f, 1f),
+            "Peleng" => new Color(0.96f, 1f, 0.70f, 1f),
+            "Klissan" => new Color(0.50f, 1f, 0.82f, 1f),
+            _ => new Color(0.82f, 1f, 1f, 1f),
+        };
+    }
+
     public static float ThrustSizeMultiplier(string path)
     {
         return RaceFromPath(path) switch

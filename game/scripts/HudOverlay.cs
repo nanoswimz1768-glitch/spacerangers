@@ -28,6 +28,7 @@ public partial class HudOverlay : Control
     private readonly Label _weapon = NewLabel();
     private readonly Label _ship = NewLabel();
     private readonly Label _godMode = NewLabel();
+    private readonly Label _warpTarget = NewLabel();
     private readonly Label _shield = NewLabel();
     private readonly Label _armor = NewLabel();
     private readonly Label _structure = NewLabel();
@@ -44,6 +45,7 @@ public partial class HudOverlay : Control
     private int _playerId;
     private CoreVector2 _aimWorld;
     private string _shipName = string.Empty;
+    private string _warpTargetName = string.Empty;
     private bool _playerGodMode;
     private float _systemTimeSeconds;
 
@@ -59,6 +61,7 @@ public partial class HudOverlay : Control
         AddChild(_weapon);
         AddChild(_ship);
         AddChild(_godMode);
+        AddChild(_warpTarget);
         AddChild(_shield);
         AddChild(_armor);
         AddChild(_structure);
@@ -81,6 +84,13 @@ public partial class HudOverlay : Control
     {
         _system = system;
         _asteroidTrajectoryConfig.StarVisualWorldSize = MathF.Max(1f, system.Star.WorldSize);
+        QueueRedraw();
+    }
+
+    public void SetWarpTarget(string targetName)
+    {
+        _warpTargetName = targetName;
+        UpdateLabels();
         QueueRedraw();
     }
 
@@ -118,6 +128,7 @@ public partial class HudOverlay : Control
         _fps.Position = new Vector2(Math.Max(PanelPadding, minimapLeft - 76f), 8f);
         _godMode.Position = new Vector2(Math.Max(PanelPadding, minimapLeft - 128f), 24f);
         _systemName.Position = new Vector2(minimapLeft + 8f, MinimapMargin + MinimapHeight + 5f);
+        _warpTarget.Position = new Vector2(minimapLeft + 8f, MinimapMargin + MinimapHeight + 22f);
 
         var mode = ship.Mode == ShipMode.Combat ? "COMBAT" : "NAV";
         var swap = ship.ModeSwitchCooldown > 0f ? $"SWAP {ship.ModeSwitchCooldown:0.0}" : "SWAP RDY";
@@ -131,6 +142,9 @@ public partial class HudOverlay : Control
         _speed.Text = $"SPD {ship.Velocity.Length(),3:0}";
         _coords.Text = $"X {ship.Position.X,5:0} Y {ship.Position.Y,5:0}";
         _mode.Text = $"{mode}  {swap}";
+        _warpTarget.Text = string.IsNullOrWhiteSpace(_warpTargetName)
+            ? "WARP --"
+            : $"WARP -> {_warpTargetName}";
         _ship.Text = $"SHIP {_shipName}";
         _weapon.Text = $"ENE {ship.Energy,3:0}% GUN {WeaponStatus(ship)}";
         _shield.Text = $"SHD {ship.Combat.Shield,4:0}";
@@ -142,6 +156,9 @@ public partial class HudOverlay : Control
             : $"{_system.SectorName} / {_system.DisplayName}";
         _systemName.Text = $"SYSTEM {systemLabel}";
         _systemName.AddThemeColorOverride("font_color", new Color(0.72f, 1f, 0.96f, 0.94f));
+        _warpTarget.AddThemeColorOverride("font_color", string.IsNullOrWhiteSpace(_warpTargetName)
+            ? new Color(0.50f, 0.70f, 0.78f, 0.58f)
+            : new Color(0.72f, 1f, 0.90f, 0.92f));
         _godMode.Text = _playerGodMode ? "GODMODE" : string.Empty;
         _godMode.AddThemeColorOverride("font_color", new Color(1f, 0.72f, 0.22f, 0.98f));
     }

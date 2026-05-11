@@ -55,6 +55,8 @@ public partial class GameRoot : Node2D
     private EnemyStatusLayer _enemyStatusLayer = null!;
     private ReticleView _reticle = null!;
     private HudOverlay _hud = null!;
+    private StarMapOverlay _starMap = null!;
+    private StarMapToggleButton _starMapButton = null!;
     private Camera2D _camera = null!;
     private IReadOnlyList<string> _shipTexturePaths = Array.Empty<string>();
     private IReadOnlyList<string> _ordinaryShipTexturePaths = Array.Empty<string>();
@@ -66,6 +68,7 @@ public partial class GameRoot : Node2D
     private int _ordinaryShipTextureIndex = -1;
     private int _klissanShipTextureIndex = -1;
     private string _selectedShipName = "Prototype";
+    private string _warpTargetSystemId = string.Empty;
     private bool _useKlissanShipGroup;
     private bool _playerDeathExplosionSpawned;
     private bool _showShipHitboxes;
@@ -162,7 +165,29 @@ public partial class GameRoot : Node2D
         _hud = new HudOverlay();
         _hud.SetSystem(_currentSystem);
         canvas.AddChild(_hud);
+        _starMapButton = new StarMapToggleButton
+        {
+            AnchorLeft = 1f,
+            AnchorRight = 1f,
+            AnchorTop = 0f,
+            AnchorBottom = 0f,
+            OffsetLeft = -326f,
+            OffsetRight = -284f,
+            OffsetTop = 84f,
+            OffsetBottom = 126f
+        };
+        _starMapButton.ToggleRequested += ToggleStarMap;
+        canvas.AddChild(_starMapButton);
+        _starMap = new StarMapOverlay();
+        _starMap.CloseRequested += OnStarMapClosed;
+        _starMap.ConfirmTargetRequested += TuneWarpTarget;
+        canvas.AddChild(_starMap);
+        SyncStarMapData();
         AddChild(canvas);
+        if (ReadBoolUserArg("--open-star-map"))
+        {
+            OpenStarMap();
+        }
 
         RunStartupStressMode();
         RunAsteroidVfxSmokeTest();
@@ -175,6 +200,30 @@ public partial class GameRoot : Node2D
 
     public override void _Process(double delta)
     {
+        if (Input.IsActionJustPressed("star_map_toggle"))
+        {
+            ToggleStarMap();
+        }
+
+        if (_starMap.Visible)
+        {
+            if (Input.IsActionJustPressed("star_map_close"))
+            {
+                _starMap.Close();
+            }
+
+            if (Input.MouseMode != Input.MouseModeEnum.Visible)
+            {
+                Input.MouseMode = Input.MouseModeEnum.Visible;
+            }
+
+            var player = PlayerShipFrom(_snapshot);
+            _latestCommand = InputCommand.Idle(player.Id == _simulation.PlayerShipId ? player.Position : CoreVector2.Zero);
+            UpdateVisuals(0.0, _snapshot, SnapshotTimeSeconds(_snapshot));
+            UpdateFrameCapture(delta);
+            return;
+        }
+
         if (Input.MouseMode != Input.MouseModeEnum.Hidden)
         {
             Input.MouseMode = Input.MouseModeEnum.Hidden;
@@ -372,6 +421,168 @@ public partial class GameRoot : Node2D
         _hud.SetState(visualSnapshot, _simulation.PlayerShipId, _latestCommand.AimWorld, _selectedShipName, _simulation.PlayerGodMode, systemTimeSeconds);
     }
 
+    private void ToggleStarMap()
+    {
+        if (_starMap.Visible)
+        {
+            _starMap.Close();
+            return;
+        }
+
+        OpenStarMap();
+    }
+
+    private void OpenStarMap()
+    {
+        SyncStarMapData();
+        _starMap.Open();
+        _starMapButton.Active = true;
+        _starMapButton.QueueRedraw();
+    }
+
+    private void OnStarMapClosed()
+    {
+        _starMapButton.Active = false;
+        _starMapButton.QueueRedraw();
+    }
+
+    private void TuneWarpTarget(StarMapSystemEntry target)
+    {
+        _warpTargetSystemId = target.Id;
+        _hud.SetWarpTarget(target.DisplayName);
+        SyncStarMapData();
+        GD.Print($"Warp engine tuned: {target.DisplayName} ({target.Id}).");
+    }
+
+    private void SyncStarMapData()
+    {
+        if (_starMap is null)
+        {
+            return;
+        }
+
+        _starMap.SetSystems(BuildStarMapEntries(), _currentSystem.Id, _warpTargetSystemId);
+    }
+
+    private IReadOnlyList<StarMapSystemEntry> BuildStarMapEntries()
+    {
+        var fixtureSectors = ReadIntUserArg("--star-map-fixture-sectors", 0);
+        if (fixtureSectors > 0)
+        {
+            return BuildStarMapFixtureEntries(
+                fixtureSectors,
+                ReadIntUserArg("--star-map-fixture-systems-per-sector", 5));
+        }
+
+        EnsureGeneratedSystemsLoaded();
+        var entries = new List<StarMapSystemEntry>
+        {
+            new(
+                SolarSystem.Sol.Id,
+                SolarSystem.Sol.DisplayName,
+                SolarSystem.Sol.SectorId,
+                SolarSystem.Sol.SectorName,
+                SolarSystem.Sol.Star.Archetype,
+                SolarSystem.Sol.Star.MapColor,
+                SolarSystem.Sol.Planets.Count,
+                "preset",
+                string.Empty)
+        };
+
+        foreach (var entry in _generatedSystems)
+        {
+            if (string.Equals(entry.Id, SolarSystem.Sol.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var system = string.IsNullOrWhiteSpace(entry.File) ? null : StarSystemLoader.LoadSystem(entry.File);
+            entries.Add(new StarMapSystemEntry(
+                string.IsNullOrWhiteSpace(entry.Id) ? system?.Id ?? entry.DisplayName : entry.Id,
+                system?.DisplayName ?? entry.DisplayName,
+                FirstNonEmpty(entry.SectorId, system?.SectorId, "unknown"),
+                FirstNonEmpty(entry.SectorName, system?.SectorName, "Unknown"),
+                FirstNonEmpty(entry.StarArchetype, system?.Star.Archetype, "unknown_star"),
+                system?.Star.MapColor ?? StarMapColorForArchetype(entry.StarArchetype),
+                system?.Planets.Count ?? entry.PlanetCount,
+                entry.Source,
+                entry.File));
+        }
+
+        return entries;
+    }
+
+    private IReadOnlyList<StarMapSystemEntry> BuildStarMapFixtureEntries(int sectorCount, int systemsPerSector)
+    {
+        sectorCount = Math.Clamp(sectorCount, 1, 64);
+        systemsPerSector = Math.Clamp(systemsPerSector, 1, 18);
+        var sectorNames = new[]
+        {
+            "Orion", "Taron", "Vaalgir", "Reges", "Ayla", "Hilia", "Mergac", "Denwer",
+            "Onika", "Tamuto", "Nordal", "Kastor", "Gurt", "Faara", "Kondur", "Sevek"
+        };
+        var starArchetypes = new[]
+        {
+            "yellow_main_sequence", "red_dwarf", "orange_dwarf", "blue_white_star",
+            "white_dwarf", "red_giant", "amber_giant", "violet_anomaly", "green_exotic", "neutron_like"
+        };
+
+        var entries = new List<StarMapSystemEntry>(sectorCount * systemsPerSector);
+        for (var sectorIndex = 0; sectorIndex < sectorCount; sectorIndex++)
+        {
+            var sectorId = $"fixture_{sectorIndex + 1:00}";
+            var sectorName = sectorIndex < sectorNames.Length
+                ? sectorNames[sectorIndex]
+                : $"Sector {sectorIndex + 1:00}";
+            for (var systemIndex = 0; systemIndex < systemsPerSector; systemIndex++)
+            {
+                var isCurrent = sectorIndex == 0 && systemIndex == 0;
+                var archetype = starArchetypes[(sectorIndex * 3 + systemIndex) % starArchetypes.Length];
+                var entryArchetype = isCurrent ? _currentSystem.Star.Archetype : archetype;
+                entries.Add(new StarMapSystemEntry(
+                    isCurrent ? _currentSystem.Id : $"{sectorId}_{systemIndex + 1:000}",
+                    isCurrent ? _currentSystem.DisplayName : $"{sectorName} {systemIndex + 1:00}",
+                    sectorId,
+                    sectorName,
+                    entryArchetype,
+                    isCurrent ? _currentSystem.Star.MapColor : StarMapColorForArchetype(entryArchetype),
+                    isCurrent ? _currentSystem.Planets.Count : 1 + (sectorIndex * 7 + systemIndex * 5) % 12,
+                    isCurrent ? "current" : "fixture",
+                    string.Empty));
+            }
+        }
+
+        return entries;
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private static Color StarMapColorForArchetype(string archetype)
+    {
+        return archetype switch
+        {
+            "red_dwarf" or "red_giant" => new Color(1f, 0.28f, 0.12f, 1f),
+            "orange_dwarf" or "amber_giant" => new Color(1f, 0.62f, 0.16f, 1f),
+            "blue_white_star" => new Color(0.56f, 0.82f, 1f, 1f),
+            "white_dwarf" => new Color(0.92f, 0.96f, 1f, 1f),
+            "violet_anomaly" => new Color(0.82f, 0.36f, 1f, 1f),
+            "green_exotic" => new Color(0.30f, 1f, 0.68f, 1f),
+            "neutron_like" => new Color(0.72f, 0.96f, 1f, 1f),
+            _ => new Color(1f, 0.72f, 0.18f, 1f)
+        };
+    }
+
     private void HandleAsteroidEvents(WorldSnapshot snapshot)
     {
         if (snapshot.Tick != _handledAsteroidEventTick)
@@ -490,6 +701,7 @@ public partial class GameRoot : Node2D
         ClearTransientVisualState();
         _background.SetSystem(system);
         _hud.SetSystem(system);
+        SyncStarMapData();
         UpdateVisuals(0.0, _snapshot, SnapshotTimeSeconds(_snapshot));
         GD.Print($"Star system: {system.DisplayName} ({system.Star.DisplayName}, {system.Planets.Count} planets, background {system.Background.DisplayName}).");
     }
@@ -1947,6 +2159,8 @@ public partial class GameRoot : Node2D
         BindKey("debug_revive_player", Key.F10);
         BindKey("debug_system_sol", Key.F11);
         BindKey("debug_system_next", Key.F12);
+        BindKey("star_map_toggle", Key.M);
+        BindKey("star_map_close", Key.Escape);
         BindMouse("weapon_fire", MouseButton.Left);
     }
 

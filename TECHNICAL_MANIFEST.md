@@ -189,6 +189,7 @@ tmp/                            Temporary previews/generated scratch output
 - регистрирует input actions, включая `ship_afterburner` на Left Shift;
 - переключает обычный/Klissan каталог кораблей по тильде и корабли внутри активного каталога по `Tab`;
 - переключает generated star systems внутри активной игры (`F11` возвращает `Sol`, `F12` циклит generated systems);
+- открывает звездную карту через `M` или HUD-иконку; карта временно ставит симуляцию на паузу, показывает текущие runtime systems по секторам и по `OK` только настраивает варп-двигатель на выбранную систему без фактического прыжка;
 - загружает JSON generated-системы только при выборе/старте этой системы, а не весь сектор сразу;
 - передает один общий `systemTimeSeconds` в `SpaceBackground` и `HudOverlay`, чтобы видимые планеты и миникарта не расходились после system switch;
 - обрабатывает debug-spawn врагов, godmode, stress CLI, `--system=...`, `--stress-system-switches`, frame capture и LOD видимости врагов.
@@ -228,6 +229,10 @@ tmp/                            Temporary previews/generated scratch output
 `StarSystemLoader.cs` - загрузчик runtime JSON для generated systems.
 
 Он конвертирует JSON из `game/assets/generated/systems/*.json` в `StarSystemDefinition`, включая star/background/planet visual profile. Если поле отсутствует или файл не найден, игра должна безопасно остаться в `Sol` или пропустить систему, а не ломать старт.
+
+`StarMapOverlay.cs`, `StarMapToggleButton.cs`, `StarMapSystemEntry.cs` - runtime-звездная карта.
+
+Карта строится из текущего `Sol` plus compact generated galaxy index, группирует systems по `SectorId/SectorName`, рисует секторные геометрические фигуры и звезды цветом star archetype/map color. Layout адаптивный: при малом числе секторов разрешены более выразительные формы, при высокой плотности используются более емкие многоугольники, уменьшается размер звезд/шрифта и отключаются второстепенные system labels. Current/tuned/selected/hovered systems остаются приоритетными и всегда доступны через правую панель. `OK` вызывает только tune warp target; реальный warp не выполняется.
 
 `MusicController.cs` - фоновая музыка.
 
@@ -389,6 +394,7 @@ Asteroids:
 - `Q/E` - strafe
 - mouse - aim
 - `R` - toggle Navigation/Combat mode
+- `M` - open/close star map
 - left mouse button - fire in Combat mode
 - Left Shift - afterburner in Navigation mode
 - `~`/backtick - toggle ordinary ship catalog / Klissan ship catalog
@@ -407,6 +413,8 @@ Input actions создаются в `GameRoot.ConfigureInputMap()`.
 
 - `game/scripts/HudOverlay.cs`
 - `game/scripts/ReticleView.cs`
+- `game/scripts/StarMapOverlay.cs`
+- `game/scripts/StarMapToggleButton.cs`
 - `game/scripts/EnemyStatusLayer.cs`
 - `game/scripts/AsteroidLayer.cs`
 - `game/scripts/AsteroidFireLayer.cs`
@@ -426,10 +434,40 @@ Input actions создаются в `GameRoot.ConfigureInputMap()`.
 - астероиды на миникарте отображаются не планетными шариками, а угловатыми каменными полигонами с фасетками/трещинами;
 - маркер игрока на миникарте отдельный: компактный янтарно-золотой корабельный chevron, плюс короткий velocity vector по текущей скорости в той же теплой палитре.
 - под миникартой показывается имя текущей системы в формате `SYSTEM Sector / System`;
+- под именем системы показывается текущая настройка варп-двигателя: `WARP --` или `WARP -> Target`;
+- рядом с миникартой находится кликабельная HUD-иконка звездной карты; она дублирует `M`, открывает `StarMapOverlay` и при открытой карте показывает обычный Windows cursor;
 - иконки звезды/планет на миникарте имеют отдельный screen-space scale, чтобы огромная звезда не забивала карту;
 - планеты на миникарте должны использовать тот же `systemTimeSeconds`, что и `SpaceBackground`, а не независимый `snapshot.Tick`; иначе после переключения систем orbital position может визуально разъехаться с реальным положением планеты.
 
 Осторожно: HUD сейчас сделан через прямую `Control._Draw()`-отрисовку и `Label`-позиционирование. Если править интерфейс, проверять на широком 1920x1080 окне и следить, чтобы текст не наезжал на полоски.
+
+## Star Map
+
+Ключевые файлы:
+
+- `game/scripts/StarMapOverlay.cs`
+- `game/scripts/StarMapToggleButton.cs`
+- `game/scripts/StarMapSystemEntry.cs`
+- `game/scripts/GameRoot.cs`
+
+Текущее поведение:
+
+- `M` и HUD-иконка открывают/закрывают карту;
+- открытая карта ставит gameplay input/симуляцию на паузу, показывает обычный cursor и оставляет фон игры под затемнением;
+- список систем строится из текущего `Sol` и `game/assets/generated/galaxy.json`; полноценный system JSON подгружается только для деталей конкретной generated-системы, без создания runtime nodes/textures для всех систем;
+- системы группируются по сектору, каждая система получает кружок цвета своей звезды, имя, current marker и tuned target marker;
+- сектор может быть разной геометрической формы, но layout выбирает более вместительные формы для плотных секторов, чтобы красота не ломала читаемость;
+- при большом числе секторов карта адаптирует grid, star radius, sector font, system font и плотность подписей; routine labels могут скрываться, но current/tuned/selected/hovered labels остаются видимыми и выбранная система всегда раскрывается в правой панели;
+- layout карты кэшируется и пересчитывается только при изменении списка systems, выбора или viewport size; pulse/redraw не должен каждый кадр пересоздавать sector polygons/layout arrays;
+- `OK` на выбранной системе вызывает только настройку warp target и обновляет HUD `WARP -> Target`; фактический warp между системами пока не выполняется.
+
+Диагностический режим без изменения generated JSON:
+
+```powershell
+& ".\tools\run_game.ps1" -- --open-star-map --star-map-fixture-sectors=24 --star-map-fixture-systems-per-sector=7
+```
+
+Он нужен только для проверки масштабирования карты при большом числе секторов/систем.
 
 ## Planets And Solar System
 
@@ -526,6 +564,7 @@ Runtime loading:
 - `GameRoot` хранит compact index generated systems, но полноценный JSON системы грузит только при выборе системы;
 - `F12` переключает generated systems, `F11` возвращает `Sol`;
 - `--system=orion_0001` запускает текущую тестовую generated-систему `Planet Showcase`;
+- `--open-star-map` открывает карту сразу после старта; `--star-map-fixture-sectors` и `--star-map-fixture-systems-per-sector` включают synthetic layout fixture только для visual smoke масштабирования;
 - при смене системы вызывается `ApplyStarSystemPhysics()`, `ResetSimulationForActiveSystem()`, `ClearTransientVisualState()`, затем `SpaceBackground.SetSystem()` и `HudOverlay.SetSystem()`;
 - существование других систем не должно создавать nodes/textures/materials в сцене, пока актор не находится в этой системе.
 
@@ -581,6 +620,9 @@ Stars:
 - `diagnostics/visual_check_20260510/frame_capture/*` - кадры generated backgrounds/stars;
 - `diagnostics/visual_check_20260510/minimap_sync/*` - проверка синхронизации миникарты и видимой планеты;
 - `diagnostics/visual_check_20260510/planet_surface_fix/*` - сравнение raw/processed planet surface seam.
+- `diagnostics/star_map_mvp_v5/*` - runtime smoke реальной карты с текущими системами;
+- `diagnostics/star_map_dense_fixture_v2/*` - dense fixture 24 sectors x 7 systems для проверки читаемости и отключения второстепенных labels;
+- `diagnostics/star_map_sparse_fixture_v1/*` - sparse fixture для проверки вариативных форм секторов.
 
 ## Star And Sun Rendering
 
@@ -1115,6 +1157,19 @@ dotnet run --project tests/SpaceManagers.Core.Tests/SpaceManagers.Core.Tests.csp
 dotnet run --project tests/SpaceManagers.PerfSmoke/SpaceManagers.PerfSmoke.csproj -c Release: success
 Godot headless smoke --system=orion_0001: success, Startup star system: Planet Showcase; primary frames loaded from res://assets/generated/star_frames_experimental/yellow_main_sequence_01; avg_fps 122.8, min_fps 68.0, max_frame_ms 6.9
 Godot headless smoke --system=orion_0001 --star-frames=stable: success; stable fallback path used; avg_fps 136.0, min_fps 136.0, max_frame_ms 6.9
+```
+
+Последняя проверка после Star Map MVP от 2026-05-11:
+
+```text
+StarMapOverlay/StarMapToggleButton/StarMapSystemEntry added; GameRoot binds M and HUD icon; OK tunes warp target only.
+Star map adaptive layout: sector grid, variable sector geometry, dense compact labels, priority current/tuned/selected/hover labels.
+dotnet build game/SpaceManagersPrototype.sln: 0 warnings, 0 errors
+dotnet run --project tests/SpaceManagers.Core.Tests/SpaceManagers.Core.Tests.csproj --no-restore: 39 tests passed
+dotnet run --project tests/SpaceManagers.PerfSmoke/SpaceManagers.PerfSmoke.csproj --no-restore: success
+Godot runtime capture --system=orion_0001 --star-frames=experimental --open-star-map: success, PNG в diagnostics/star_map_mvp_v5/
+Godot runtime capture --star-map-fixture-sectors=24 --star-map-fixture-systems-per-sector=7: success, PNG в diagnostics/star_map_dense_fixture_v2/
+Godot runtime capture --star-map-fixture-sectors=6 --star-map-fixture-systems-per-sector=2: success, PNG в diagnostics/star_map_sparse_fixture_v1/
 ```
 
 Подозрительные зоны для дальнейшей проверки:

@@ -144,20 +144,12 @@ public static class ShipCatalog
 
     public static float ThrustBubbleMultiplier(string path)
     {
-        return RaceFromPath(path) switch
-        {
-            "Klissan" => 0.28f,
-            _ => 1f
-        };
+        return 1f;
     }
 
     public static float ThrustParticleDensity(string path)
     {
-        return RaceFromPath(path) switch
-        {
-            "Klissan" => 1.45f,
-            _ => 1f
-        };
+        return 1f;
     }
 
     public static IReadOnlyList<EnginePort> ExhaustPortsForPath(string path)

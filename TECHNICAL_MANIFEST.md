@@ -1219,6 +1219,22 @@ Godot runtime capture --open-star-map --star-map-inspect=orion_0001: success, PN
 Godot runtime capture --star-map-fixture-sectors=24 --star-map-fixture-systems-per-sector=7: success, PNG в diagnostics/star_map_v3_dense/
 ```
 
+Последняя проверка после Star Map font/background correction от 2026-05-11:
+
+```text
+Project stretch mode changed from canvas_items to disabled: the game now renders UI at native window resolution instead of scaling the 1280x720 canvas to 1920x1080, which was making Star Map text look dirty/blurry on the user's screen.
+StarMapOverlay text shadow pass removed for Star Map labels/panels/popups; text is now single-pass over darker local panels.
+Star Map high-res background now uses aspect-preserving cover/crop via DrawTextureRectRegion instead of stretching the tile into the map rect.
+Procedural diagonal nebula bands removed from the map layer; only a light glass tint/grid and a small number of navigation specks remain over the high-res background.
+Planet popup is clamped to the map rect so it no longer covers the right-side warp target panel.
+dotnet build game/SpaceManagersPrototype.sln: 0 warnings, 0 errors
+dotnet run --project tests/SpaceManagers.Core.Tests/SpaceManagers.Core.Tests.csproj --no-restore: 39 tests passed
+dotnet run --project tests/SpaceManagers.PerfSmoke/SpaceManagers.PerfSmoke.csproj --no-restore: success
+Godot runtime capture --resolution 1920x1080 --open-star-map --star-map-inspect=orion_0001: success, PNG в diagnostics/star_map_v4_1080p/
+Godot runtime capture --resolution 1920x1080 --open-star-map --star-map-select=sol: success, PNG в diagnostics/star_map_v4_route_1080p/
+Godot runtime capture --resolution 1920x1080 --star-map-fixture-sectors=24 --star-map-fixture-systems-per-sector=7: success, PNG в diagnostics/star_map_v4_dense_1080p/
+```
+
 Подозрительные зоны для дальнейшей проверки:
 
 - `space_nebula_tile.png` имеет большой размер и может есть VRAM;

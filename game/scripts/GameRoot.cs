@@ -57,7 +57,6 @@ public partial class GameRoot : Node2D
     private EnemyStatusLayer _enemyStatusLayer = null!;
     private ReticleView _reticle = null!;
     private WarpTunnelLayer _warpTunnel = null!;
-    private WarpScreenLayer _warpScreen = null!;
     private HudOverlay _hud = null!;
     private StarMapOverlay _starMap = null!;
     private StarMapToggleButton _starMapButton = null!;
@@ -179,8 +178,6 @@ public partial class GameRoot : Node2D
         AddChild(_camera);
 
         var canvas = new CanvasLayer();
-        _warpScreen = new WarpScreenLayer();
-        canvas.AddChild(_warpScreen);
         _hud = new HudOverlay();
         _hud.SetSystem(_currentSystem);
         canvas.AddChild(_hud);
@@ -467,7 +464,6 @@ public partial class GameRoot : Node2D
             _camera.Position = shipPosition;
         }
 
-        UpdateWarpScreenLayer(warpVisual);
         _background.SetVisualTime(systemTimeSeconds);
         _enemyStatusLayer.SetState(visualSnapshot.Ships, _simulation.PlayerShipId, visibleWorldRect, _statusBarEnemyIds);
         _hud.SetState(visualSnapshot, _simulation.PlayerShipId, _latestCommand.AimWorld, _selectedShipName, _simulation.PlayerGodMode, systemTimeSeconds);
@@ -760,10 +756,8 @@ public partial class GameRoot : Node2D
             _warpTunnel.Position = residualWarpVisual.TunnelPosition;
             _warpTunnel.Rotation = residualWarpVisual.TunnelRotation;
             _warpTunnel.MouthOffset = residualWarpVisual.TunnelMouthOffset;
-            _warpTunnel.BeginResidual(_selectedWarpOuterColor, _selectedWarpCoreColor, arriving: true, duration: 1.55f);
+            _warpTunnel.BeginResidual(_selectedWarpOuterColor, _selectedWarpCoreColor, arriving: true, duration: 1.45f);
         }
-
-        _warpScreen?.StartAfterglow(CurrentWarpFocusScreen(residualWarpVisual), _selectedWarpOuterColor, _selectedWarpCoreColor);
 
         _warpInTransit = false;
         _warpTransitElapsed = 0f;
@@ -831,46 +825,6 @@ public partial class GameRoot : Node2D
         _shipView.WarpChargeLevel = hasTarget ? chargeRatio : 0f;
         _shipView.WarpChargeActive = charging || ready;
         _shipView.WarpTransitLevel = _warpInTransit ? 1f : 0f;
-        if (_warpTunnel is not null && _warpTunnel.Active && _warpInTransit)
-        {
-            var warpVisual = BuildWarpVisualState(player.Position.ToGodot(), player.Rotation);
-            _warpTunnel.Position = warpVisual.TunnelPosition;
-            _warpTunnel.Rotation = warpVisual.TunnelRotation;
-            _warpTunnel.MouthOffset = warpVisual.TunnelMouthOffset;
-        }
-    }
-
-    private void UpdateWarpScreenLayer(WarpVisualState warpVisual)
-    {
-        if (_warpScreen is null)
-        {
-            return;
-        }
-
-        if (!_warpInTransit)
-        {
-            _warpScreen.SetWarpState(false, Vector2.Zero, _selectedWarpOuterColor, _selectedWarpCoreColor, 0f, arriving: false);
-            return;
-        }
-
-        var halfTime = Math.Max(0.001f, WarpTransitSeconds * 0.5f);
-        var phaseElapsed = _warpTransitSwitched
-            ? _warpTransitElapsed - halfTime
-            : _warpTransitElapsed;
-        var phase = Math.Clamp(phaseElapsed / halfTime, 0f, 1f);
-        _warpScreen.SetWarpState(
-            true,
-            CurrentWarpFocusScreen(warpVisual),
-            _selectedWarpOuterColor,
-            _selectedWarpCoreColor,
-            phase,
-            _warpTransitSwitched);
-    }
-
-    private Vector2 CurrentWarpFocusScreen(WarpVisualState warpVisual)
-    {
-        var mouthWorld = warpVisual.TunnelPosition + warpVisual.TunnelMouthOffset.Rotated(warpVisual.TunnelRotation);
-        return WorldToScreen(mouthWorld);
     }
 
     private IReadOnlyList<StarMapSystemEntry> BuildStarMapEntries()
@@ -2684,14 +2638,6 @@ public partial class GameRoot : Node2D
             viewportSize.X / Math.Max(0.001f, zoom.X),
             viewportSize.Y / Math.Max(0.001f, zoom.Y));
         return new Rect2(center - worldSize * 0.5f - new Vector2(margin, margin), worldSize + new Vector2(margin * 2f, margin * 2f));
-    }
-
-    private Vector2 WorldToScreen(Vector2 worldPosition)
-    {
-        var viewportSize = GetViewportRect().Size;
-        var zoom = _camera?.Zoom ?? Vector2.One;
-        var cameraPosition = _camera?.Position ?? Vector2.Zero;
-        return (worldPosition - cameraPosition) * zoom + viewportSize * 0.5f;
     }
 
     private static ShipEffectQuality EffectQualityForEnemy(

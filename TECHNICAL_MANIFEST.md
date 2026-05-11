@@ -1440,10 +1440,17 @@ Warp VFX V2 notes:
 Warp VFX V3 notes:
 
 - `WarpScreenLayer` is a canvas-space warp overlay under the HUD. It darkens the scene during transit, draws radial star-stretch streaks toward the tunnel focus, adds short shockwave flashes on enter/exit, and keeps a brief afterglow after arrival.
-- `WarpTunnelLayer` now favors an organic vortex: helical tube strands, spiral mouth bands, rift filaments, subtle premium ring/sparkle accents, and a fading residual arrival sleeve instead of an instant stop.
-- Warp colors are ship/race-aware via `ShipCatalog.WarpOuterColor()` and `ShipCatalog.WarpCoreColor()`, separate from normal engine thrust colors.
 - `ShipView` calibration VFX now includes moving conduit pulses along inferred rig anchors: engines, wing roots/tips, core, and nose. The old global rings are reduced so the ship looks like it is charging internally, not sitting inside a simple circle.
-- Finish state leaves a 1.5 second fading arrival wake in world and screen space; runtime tunnel transforms are not overwritten by the normal ship update while that residual wake fades.
+- Warp colors are ship/race-aware via `ShipCatalog.WarpOuterColor()` and `ShipCatalog.WarpCoreColor()`, separate from normal engine thrust colors.
+
+Warp VFX V4 shader-first notes:
+
+- Gameplay warp is a world-space shader tunnel, not a fullscreen cutscene layer and not the old C# line/arc renderer.
+- `WarpTunnelLayer` owns three shader-backed polygons: a soft sleeve (`res://shaders/warp_tunnel_sheath.gdshader`), an additive filament/ring strip (`res://shaders/warp_tunnel_strip.gdshader`), and a circular vortex mouth (`res://shaders/warp_portal_mouth.gdshader`).
+- The player ship visually travels along that world-space tunnel: outbound pulls the ship into the forward vortex, arrival starts inside the destination tunnel and exits nose-first toward the star.
+- `WarpScreenLayer` and `res://shaders/warp_tunnel_screen.gdshader` are kept only for shader-lab/preview experiments, not as the normal gameplay warp presentation.
+- Preview-before-import workflow lives in `res://scenes/WarpTunnelPreview.tscn`, with `WarpTunnelPreview.cs` showing a tunable shader tunnel plus ship sprite before further gameplay wiring.
+- New warp VFX work should prefer Godot shader/particle resources or generated preview assets first, then import into gameplay; avoid returning to large per-frame `_Draw()` tunnel construction.
 
 ## Safe Change Checklist
 

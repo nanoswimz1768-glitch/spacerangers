@@ -1,4 +1,5 @@
 using Godot;
+using System.Globalization;
 using System.Linq;
 
 namespace SpaceManagersPrototype;
@@ -7,18 +8,18 @@ public partial class StarMapOverlay : Control
 {
     private const float OuterMargin = 34f;
     private const float PanelRadius = 8f;
-    private const float SidePanelWidth = 292f;
+    private const float SidePanelWidth = 324f;
     private const float HeaderHeight = 48f;
     private const float FooterHeight = 54f;
     private const float SectorGap = 18f;
     private const float SystemHitRadius = 14f;
+    private const string MapBackdropPath = "res://assets/generated/background_tiles/cold_blue_void_01_tile.png";
 
     private readonly List<StarMapSystemEntry> _systems = new();
     private readonly List<SystemLayout> _layouts = new();
     private readonly Dictionary<string, SectorLayout> _sectorLayouts = new(StringComparer.OrdinalIgnoreCase);
     private readonly Vector2[] _currentMarker = new Vector2[4];
     private readonly Vector2[] _targetMarker = new Vector2[4];
-    private readonly Vector2[] _starSpark = new Vector2[4];
 
     private Rect2 _panelRect;
     private Rect2 _mapRect;
@@ -41,6 +42,7 @@ public partial class StarMapOverlay : Control
     private StarMapSystemEntry? _planetPopupEntry;
     private Vector2 _planetPopupAnchor;
     private float _pulse;
+    private Texture2D? _mapBackdropTexture;
 
     public event Action? CloseRequested;
     public event Action<StarMapSystemEntry>? ConfirmTargetRequested;
@@ -52,6 +54,7 @@ public partial class StarMapOverlay : Control
         FocusMode = FocusModeEnum.All;
         ZIndex = 100;
         SetAnchorsPreset(LayoutPreset.FullRect);
+        _mapBackdropTexture = LoadOptionalTexture(MapBackdropPath);
         SetProcess(true);
         SetProcessInput(true);
     }
@@ -209,8 +212,7 @@ public partial class StarMapOverlay : Control
         {
             ConfirmTargetRequested?.Invoke(_selected);
             _tunedSystemId = _selected.Id;
-            _layoutDirty = true;
-            QueueRedraw();
+            Close();
             return true;
         }
 
@@ -449,8 +451,8 @@ public partial class StarMapOverlay : Control
             true);
 
         var font = GetThemeDefaultFont();
-        DrawString(font, _panelRect.Position + new Vector2(24f, 31f), "STARMAP", HorizontalAlignment.Left, -1f, 20, new Color(0.66f, 1f, 0.94f, 0.96f));
-        DrawString(font, _panelRect.Position + new Vector2(132f, 31f), "M", HorizontalAlignment.Left, -1f, 14, new Color(1f, 0.82f, 0.34f, 0.76f));
+        DrawString(font, PixelSnap(_panelRect.Position + new Vector2(24f, 31f)), "STARMAP", HorizontalAlignment.Left, -1f, 20, new Color(0.66f, 1f, 0.94f, 0.96f));
+        DrawString(font, PixelSnap(_panelRect.Position + new Vector2(132f, 31f)), "M", HorizontalAlignment.Left, -1f, 14, new Color(1f, 0.82f, 0.34f, 0.76f));
         DrawCloseButton();
     }
 
@@ -465,53 +467,79 @@ public partial class StarMapOverlay : Control
 
     private void DrawMapBackground()
     {
-        DrawRect(_mapRect, new Color(0f, 0.018f, 0.036f, 0.96f), true);
-        DrawRect(new Rect2(_mapRect.Position, new Vector2(_mapRect.Size.X, _mapRect.Size.Y * 0.44f)), new Color(0.02f, 0.09f, 0.13f, 0.24f), true);
-        DrawRect(new Rect2(_mapRect.Position + new Vector2(0f, _mapRect.Size.Y * 0.58f), new Vector2(_mapRect.Size.X, _mapRect.Size.Y * 0.42f)), new Color(0.04f, 0.02f, 0.07f, 0.18f), true);
-
-        for (var i = 0; i < 9; i++)
+        DrawRect(_mapRect, new Color(0f, 0.012f, 0.026f, 0.97f), true);
+        if (_mapBackdropTexture is not null)
         {
-            var y = _mapRect.Position.Y + Hash01(i * 71 + 9) * _mapRect.Size.Y;
-            var start = new Vector2(_mapRect.Position.X - 80f, y);
-            var end = new Vector2(_mapRect.End.X + 80f, y + (Hash01(i * 101 + 12) * 2f - 1f) * 120f);
-            var color = i % 2 == 0
-                ? new Color(0.04f, 0.26f, 0.38f, 0.055f)
-                : new Color(0.18f, 0.08f, 0.22f, 0.045f);
-            DrawLine(start, end, color, 34f + Hash01(i * 19) * 44f, true);
+            DrawTextureRect(_mapBackdropTexture, _mapRect, false, new Color(0.72f, 0.90f, 1f, 0.34f));
+            DrawRect(_mapRect, new Color(0f, 0.012f, 0.026f, 0.44f), true);
         }
 
-        for (var i = 0; i < 250; i++)
+        DrawRect(new Rect2(_mapRect.Position, new Vector2(_mapRect.Size.X, _mapRect.Size.Y * 0.52f)), new Color(0.02f, 0.075f, 0.115f, 0.20f), true);
+        DrawRect(new Rect2(_mapRect.Position + new Vector2(0f, _mapRect.Size.Y * 0.56f), new Vector2(_mapRect.Size.X, _mapRect.Size.Y * 0.44f)), new Color(0.045f, 0.015f, 0.062f, 0.13f), true);
+
+        DrawNebulaBand(0.20f, 0.21f, 0.14f, new Color(0.05f, 0.44f, 0.58f, 0.070f));
+        DrawNebulaBand(0.62f, -0.16f, 0.18f, new Color(0.22f, 0.08f, 0.25f, 0.055f));
+        DrawNebulaBand(0.83f, 0.10f, 0.10f, new Color(0.38f, 0.20f, 0.08f, 0.040f));
+
+        for (var i = 0; i < 90; i++)
         {
             var x = _mapRect.Position.X + Hash01(i * 37 + 11) * _mapRect.Size.X;
             var y = _mapRect.Position.Y + Hash01(i * 53 + 7) * _mapRect.Size.Y;
             var bright = Hash01(i * 83 + 3);
-            var alpha = 0.14f + bright * 0.58f;
-            var radius = 0.45f + Hash01(i * 97 + 19) * 1.35f;
-            var star = new Vector2(x, y);
-            var tint = bright > 0.86f
-                ? new Color(1f, 0.86f, 0.52f, alpha)
-                : new Color(0.58f, 0.90f, 1f, alpha);
-            DrawCircle(star, radius, tint);
-            if (bright > 0.94f)
-            {
-                DrawLine(star - new Vector2(radius * 2.4f, 0f), star + new Vector2(radius * 2.4f, 0f), WithAlpha(tint, alpha * 0.36f), 0.7f, true);
-                DrawLine(star - new Vector2(0f, radius * 2.4f), star + new Vector2(0f, radius * 2.4f), WithAlpha(tint, alpha * 0.30f), 0.7f, true);
-            }
+            var radius = 0.45f + Hash01(i * 97 + 19) * 1.05f;
+            var alpha = 0.13f + bright * 0.38f;
+            var tint = bright > 0.88f
+                ? new Color(1f, 0.86f, 0.56f, alpha)
+                : new Color(0.62f, 0.90f, 1f, alpha);
+            DrawBackgroundStar(new Vector2(x, y), radius, tint, bright > 0.94f);
+        }
+
+        for (var i = 0; i < 16; i++)
+        {
+            var cluster = new Vector2(
+                _mapRect.Position.X + Hash01(i * 131 + 4) * _mapRect.Size.X,
+                _mapRect.Position.Y + Hash01(i * 151 + 9) * _mapRect.Size.Y);
+            var radius = 1.2f + Hash01(i * 41 + 17) * 1.6f;
+            DrawBackgroundStar(cluster, radius, new Color(0.78f, 0.95f, 1f, 0.56f), true);
         }
 
         for (var i = 1; i < 4; i++)
         {
             var x = _mapRect.Position.X + _mapRect.Size.X * i / 4f;
-            DrawLine(new Vector2(x, _mapRect.Position.Y), new Vector2(x, _mapRect.End.Y), new Color(0.06f, 0.58f, 0.82f, 0.045f), 1f, true);
+            DrawLine(new Vector2(x, _mapRect.Position.Y), new Vector2(x, _mapRect.End.Y), new Color(0.06f, 0.58f, 0.82f, 0.024f), 1f, true);
         }
 
         for (var i = 1; i < 3; i++)
         {
             var y = _mapRect.Position.Y + _mapRect.Size.Y * i / 3f;
-            DrawLine(new Vector2(_mapRect.Position.X, y), new Vector2(_mapRect.End.X, y), new Color(0.06f, 0.58f, 0.82f, 0.04f), 1f, true);
+            DrawLine(new Vector2(_mapRect.Position.X, y), new Vector2(_mapRect.End.X, y), new Color(0.06f, 0.58f, 0.82f, 0.020f), 1f, true);
         }
 
-        DrawRect(_mapRect, new Color(0.02f, 0.66f, 0.95f, 0.58f), false, 1.4f);
+        DrawRect(_mapRect, new Color(0.02f, 0.66f, 0.95f, 0.46f), false, 1.2f);
+    }
+
+    private void DrawNebulaBand(float yFactor, float slope, float widthFactor, Color color)
+    {
+        var y = _mapRect.Position.Y + _mapRect.Size.Y * yFactor;
+        var start = new Vector2(_mapRect.Position.X - _mapRect.Size.X * 0.10f, y);
+        var end = new Vector2(_mapRect.End.X + _mapRect.Size.X * 0.10f, y + _mapRect.Size.Y * slope);
+        var width = Math.Clamp(_mapRect.Size.Y * widthFactor, 36f, 138f);
+        DrawLine(start, end, color, width, true);
+        DrawLine(start + new Vector2(0f, width * 0.26f), end + new Vector2(0f, width * 0.12f), WithAlpha(color, color.A * 0.46f), width * 0.34f, true);
+    }
+
+    private void DrawBackgroundStar(Vector2 position, float radius, Color color, bool glint)
+    {
+        var center = PixelSnap(position);
+        DrawCircle(center, radius, color);
+        if (!glint)
+        {
+            return;
+        }
+
+        var lineColor = WithAlpha(color, color.A * 0.42f);
+        DrawLine(center - new Vector2(radius * 2.8f, 0f), center + new Vector2(radius * 2.8f, 0f), lineColor, 0.75f, true);
+        DrawLine(center - new Vector2(0f, radius * 2.8f), center + new Vector2(0f, radius * 2.8f), WithAlpha(lineColor, lineColor.A * 0.78f), 0.75f, true);
     }
 
     private void DrawSectors()
@@ -536,7 +564,7 @@ public partial class StarMapOverlay : Control
                 var compactName = TrimSectorLabel(name, sector.Rect.Size.X);
                 DrawString(
                     font,
-                    sector.Rect.Position + new Vector2(8f, 16f),
+                    PixelSnap(sector.Rect.Position + new Vector2(8f, 16f)),
                     compactName,
                     HorizontalAlignment.Left,
                     sector.Rect.Size.X - 16f,
@@ -547,7 +575,7 @@ public partial class StarMapOverlay : Control
 
             var center = sector.Rect.GetCenter();
             var width = font?.GetStringSize(name, HorizontalAlignment.Left, -1f, _sectorFontSize).X ?? name.Length * _sectorFontSize * 0.55f;
-            DrawString(font, center - new Vector2(width * 0.5f, 4f), name, HorizontalAlignment.Left, -1f, _sectorFontSize, new Color(0.62f, 0.82f, 0.90f, 0.20f));
+            DrawString(font, PixelSnap(center - new Vector2(width * 0.5f, 4f)), name, HorizontalAlignment.Left, -1f, _sectorFontSize, new Color(0.62f, 0.82f, 0.90f, 0.16f));
         }
     }
 
@@ -615,7 +643,7 @@ public partial class StarMapOverlay : Control
 
             if (isSelected || isHovered)
             {
-                DrawCircle(layout.Position, layout.StarRadius + 12f, new Color(0.28f, 0.96f, 1f, isSelected ? 0.18f : 0.10f));
+                DrawCircle(layout.Position, layout.StarRadius + 12f, new Color(0.28f, 0.96f, 1f, isSelected ? 0.14f : 0.08f));
             }
 
             if (isCurrent)
@@ -641,6 +669,10 @@ public partial class StarMapOverlay : Control
                 {
                     DrawRect(layout.LabelRect.Grow(3f), new Color(0f, 0.018f, 0.030f, 0.58f), true);
                 }
+                else
+                {
+                    DrawRect(layout.LabelRect.Grow(2f), new Color(0f, 0.018f, 0.030f, 0.26f), true);
+                }
 
                 DrawTextWithShadow(font, layout.LabelRect.Position + new Vector2(0f, fontSize), TrimLabel(layout.Entry.DisplayName), layout.LabelRect.Size.X, fontSize, textColor);
             }
@@ -651,22 +683,23 @@ public partial class StarMapOverlay : Control
     {
         var center = layout.Position;
         var radius = layout.StarRadius;
-        var glow = emphasized ? 0.34f + pulse * 0.12f : 0.18f;
-        DrawCircle(center, radius * 3.2f, new Color(color.R, color.G, color.B, glow * 0.22f));
-        DrawCircle(center, radius * 2.0f, new Color(color.R, color.G, color.B, glow * 0.34f));
-        DrawArc(center, radius * 1.75f, _pulse * 0.4f, _pulse * 0.4f + MathF.Tau * 0.72f, 24, new Color(color.R, color.G, color.B, emphasized ? 0.44f : 0.22f), 1.0f, true);
+        var glow = emphasized ? 0.28f + pulse * 0.08f : 0.16f;
+        DrawCircle(center, radius * 4.0f, new Color(color.R, color.G, color.B, glow * 0.12f));
+        DrawCircle(center, radius * 2.5f, new Color(color.R, color.G, color.B, glow * 0.23f));
+        DrawArc(center, radius * 2.05f, _pulse * 0.55f, _pulse * 0.55f + MathF.Tau * 0.66f, 28, new Color(color.R, color.G, color.B, emphasized ? 0.36f : 0.16f), 1.0f, true);
 
-        var rayLength = radius * (emphasized ? 2.4f : 1.85f);
-        _starSpark[0] = center + new Vector2(-rayLength, 0f);
-        _starSpark[1] = center + new Vector2(0f, -rayLength);
-        _starSpark[2] = center + new Vector2(rayLength, 0f);
-        _starSpark[3] = center + new Vector2(0f, rayLength);
-        DrawLine(_starSpark[0], _starSpark[2], new Color(color.R, color.G, color.B, emphasized ? 0.42f : 0.24f), 1.1f, true);
-        DrawLine(_starSpark[1], _starSpark[3], new Color(color.R, color.G, color.B, emphasized ? 0.36f : 0.18f), 1.1f, true);
+        var rayLength = radius * (emphasized ? 2.9f : 2.15f);
+        var diagonal = rayLength * 0.70f;
+        var rayColor = new Color(color.R, color.G, color.B, emphasized ? 0.44f : 0.24f);
+        DrawLine(center - new Vector2(rayLength, 0f), center + new Vector2(rayLength, 0f), rayColor, 1.1f, true);
+        DrawLine(center - new Vector2(0f, rayLength), center + new Vector2(0f, rayLength), WithAlpha(rayColor, rayColor.A * 0.82f), 1.1f, true);
+        DrawLine(center - new Vector2(diagonal, diagonal), center + new Vector2(diagonal, diagonal), WithAlpha(rayColor, rayColor.A * 0.46f), 0.85f, true);
+        DrawLine(center - new Vector2(diagonal, -diagonal), center + new Vector2(diagonal, -diagonal), WithAlpha(rayColor, rayColor.A * 0.40f), 0.85f, true);
 
-        DrawCircle(center, radius + 1.2f, new Color(0.01f, 0.018f, 0.022f, 0.86f));
-        DrawCircle(center, radius, color);
-        DrawCircle(center - new Vector2(radius * 0.25f, radius * 0.30f), Math.Max(1.4f, radius * 0.38f), new Color(1f, 0.96f, 0.72f, 0.92f));
+        DrawCircle(center, radius + 1.5f, new Color(0.005f, 0.014f, 0.020f, 0.82f));
+        DrawCircle(center, radius, new Color(color.R, color.G, color.B, 0.95f));
+        DrawCircle(center, Math.Max(1.5f, radius * 0.50f), new Color(1f, 0.96f, 0.72f, 0.90f));
+        DrawCircle(center - new Vector2(radius * 0.22f, radius * 0.24f), Math.Max(1.1f, radius * 0.24f), new Color(1f, 1f, 1f, 0.86f));
     }
 
     private void DrawCurrentMarker(Vector2 center, float radius)
@@ -694,8 +727,9 @@ public partial class StarMapOverlay : Control
 
     private void DrawTextWithShadow(Font? font, Vector2 position, string text, float width, int fontSize, Color color)
     {
-        DrawString(font, position + new Vector2(1.2f, 1.2f), text, HorizontalAlignment.Left, width, fontSize, new Color(0f, 0f, 0f, Math.Clamp(color.A * 0.72f, 0f, 0.86f)));
-        DrawString(font, position, text, HorizontalAlignment.Left, width, fontSize, color);
+        var snapped = PixelSnap(position);
+        DrawString(font, snapped + new Vector2(1f, 1f), text, HorizontalAlignment.Left, width, fontSize, new Color(0f, 0f, 0f, Math.Clamp(color.A * 0.72f, 0f, 0.86f)));
+        DrawString(font, snapped, text, HorizontalAlignment.Left, width, fontSize, color);
     }
 
     private void DrawSidePanel()
@@ -703,11 +737,11 @@ public partial class StarMapOverlay : Control
         var font = GetThemeDefaultFont();
         DrawRect(_sideRect, new Color(0f, 0.08f, 0.12f, 0.82f), true);
         DrawRect(_sideRect, new Color(0.12f, 0.78f, 1f, 0.34f), false, 1.1f);
-        DrawString(font, _sideRect.Position + new Vector2(18f, 32f), "WARP TARGET", HorizontalAlignment.Left, -1f, 15, new Color(0.56f, 1f, 0.92f, 0.94f));
+        DrawString(font, PixelSnap(_sideRect.Position + new Vector2(18f, 32f)), "WARP TARGET", HorizontalAlignment.Left, -1f, 15, new Color(0.56f, 1f, 0.92f, 0.94f));
 
         var currentName = _systems.FirstOrDefault(system => SameSystem(system.Id, _currentSystemId))?.DisplayName ?? _currentSystemId;
-        DrawString(font, _sideRect.Position + new Vector2(18f, 62f), "CURRENT", HorizontalAlignment.Left, -1f, 12, new Color(0.62f, 0.78f, 0.86f, 0.68f));
-        DrawString(font, _sideRect.Position + new Vector2(18f, 82f), currentName, HorizontalAlignment.Left, _sideRect.Size.X - 36f, 16, new Color(1f, 0.86f, 0.42f, 0.96f));
+        DrawString(font, PixelSnap(_sideRect.Position + new Vector2(18f, 62f)), "CURRENT", HorizontalAlignment.Left, -1f, 12, new Color(0.62f, 0.78f, 0.86f, 0.68f));
+        DrawString(font, PixelSnap(_sideRect.Position + new Vector2(18f, 82f)), currentName, HorizontalAlignment.Left, _sideRect.Size.X - 36f, 16, new Color(1f, 0.86f, 0.42f, 0.96f));
 
         DrawRect(_selectedCardRect, new Color(0.005f, 0.025f, 0.04f, 0.72f), true);
         DrawRect(_selectedCardRect, new Color(0.12f, 0.78f, 1f, 0.22f), false, 1f);
@@ -727,7 +761,7 @@ public partial class StarMapOverlay : Control
         DrawRect(_okRect, new Color(0.28f, 1f, 0.88f, _selected is null ? 0.26f : 0.76f), false, 1.3f);
         var okText = _selected is null ? "SELECT SYSTEM" : "OK";
         var textWidth = font?.GetStringSize(okText, HorizontalAlignment.Left, -1f, 16).X ?? 40f;
-        DrawString(font, _okRect.Position + new Vector2((_okRect.Size.X - textWidth) * 0.5f, 23f), okText, HorizontalAlignment.Left, -1f, 16, new Color(0.80f, 1f, 0.94f, _selected is null ? 0.46f : 0.96f));
+        DrawString(font, PixelSnap(_okRect.Position + new Vector2((_okRect.Size.X - textWidth) * 0.5f, 23f)), okText, HorizontalAlignment.Left, -1f, 16, new Color(0.80f, 1f, 0.94f, _selected is null ? 0.46f : 0.96f));
     }
 
     private void DrawSelectedSystem(Font? font, StarMapSystemEntry entry)
@@ -736,24 +770,21 @@ public partial class StarMapOverlay : Control
         DrawCircle(p + new Vector2(10f, 6f), 8f, new Color(entry.StarColor.R, entry.StarColor.G, entry.StarColor.B, 0.18f));
         DrawCircle(p + new Vector2(10f, 6f), 5f, entry.StarColor);
         DrawTextWithShadow(font, p + new Vector2(26f, 12f), entry.DisplayName, _selectedCardRect.Size.X - 50f, 17, new Color(0.78f, 1f, 0.94f, 0.98f));
-        DrawInfoLine(font, p + new Vector2(0f, 48f), "SECTOR", SectorName(entry));
-        DrawInfoLine(font, p + new Vector2(0f, 72f), "STAR", entry.StarDisplayName);
-        DrawInfoLine(font, p + new Vector2(0f, 96f), "SIZE", entry.StarWorldSize.ToString("0"));
-        DrawInfoLine(font, p + new Vector2(0f, 120f), "CORONA", entry.CoronaIntensity.ToString("0.00"));
-        DrawInfoLine(font, p + new Vector2(0f, 144f), "MOTION", entry.AnimationSpeed.ToString("0.00"));
-        DrawInfoLine(font, p + new Vector2(0f, 168f), "PLANETS", entry.PlanetCount.ToString());
+        DrawInfoLine(font, p + new Vector2(0f, 52f), "SECTOR", SectorName(entry));
+        DrawInfoLine(font, p + new Vector2(0f, 80f), "PLANETS", entry.PlanetCount.ToString(CultureInfo.InvariantCulture));
+        DrawInfoLine(font, p + new Vector2(0f, 108f), "TARGET", SameSystem(entry.Id, _tunedSystemId) ? "Tuned" : "Not tuned");
         var status = SameSystem(entry.Id, _currentSystemId)
             ? "CURRENT SYSTEM"
             : SameSystem(entry.Id, _tunedSystemId)
                 ? "ENGINE TUNED"
                 : "READY TO TUNE";
-        DrawTextWithShadow(font, p + new Vector2(0f, 216f), status, _selectedCardRect.Size.X - 32f, 14, new Color(1f, 0.82f, 0.34f, 0.90f));
+        DrawTextWithShadow(font, p + new Vector2(0f, 196f), status, _selectedCardRect.Size.X - 32f, 14, new Color(1f, 0.82f, 0.34f, 0.90f));
     }
 
     private void DrawInfoLine(Font? font, Vector2 position, string label, string value)
     {
-        DrawString(font, position, label, HorizontalAlignment.Left, 72f, 12, new Color(0.58f, 0.78f, 0.88f, 0.72f));
-        DrawTextWithShadow(font, position + new Vector2(74f, 0f), value, _selectedCardRect.Size.X - 112f, 13, new Color(0.70f, 0.92f, 1f, 0.84f));
+        DrawString(font, PixelSnap(position), label, HorizontalAlignment.Left, 78f, 12, new Color(0.58f, 0.78f, 0.88f, 0.72f));
+        DrawTextWithShadow(font, position + new Vector2(84f, 0f), value, _selectedCardRect.Size.X - 124f, 13, new Color(0.70f, 0.92f, 1f, 0.84f));
     }
 
     private void DrawPlanetPopup()
@@ -778,7 +809,7 @@ public partial class StarMapOverlay : Control
         DrawRect(new Rect2(rect.Position, new Vector2(rect.Size.X, 34f)), new Color(0.02f, 0.15f, 0.20f, 0.70f), true);
         DrawCircle(rect.Position + new Vector2(19f, 21f), 6.0f, _planetPopupEntry.StarColor);
         DrawTextWithShadow(font, rect.Position + new Vector2(34f, 25f), _planetPopupEntry.DisplayName, rect.Size.X - 48f, 15, new Color(0.76f, 1f, 0.94f, 0.98f));
-        DrawString(font, rect.Position + new Vector2(16f, 54f), "PLANETS", HorizontalAlignment.Left, -1f, 12, new Color(0.58f, 0.78f, 0.88f, 0.72f));
+        DrawString(font, PixelSnap(rect.Position + new Vector2(16f, 54f)), "PLANETS", HorizontalAlignment.Left, -1f, 12, new Color(0.58f, 0.78f, 0.88f, 0.72f));
 
         for (var i = 0; i < rows; i++)
         {
@@ -792,12 +823,12 @@ public partial class StarMapOverlay : Control
             }
 
             DrawTextWithShadow(font, new Vector2(rect.Position.X + 32f, y), planet.DisplayName, 148f, 13, new Color(0.78f, 0.94f, 1f, 0.92f));
-            DrawString(font, new Vector2(rect.Position.X + 184f, y), planet.Archetype, HorizontalAlignment.Left, rect.Size.X - 200f, 11, new Color(0.56f, 0.76f, 0.84f, 0.66f));
+            DrawString(font, PixelSnap(new Vector2(rect.Position.X + 184f, y)), planet.Archetype, HorizontalAlignment.Left, rect.Size.X - 200f, 11, new Color(0.56f, 0.76f, 0.84f, 0.66f));
         }
 
         if (planets.Count > rows)
         {
-            DrawString(font, rect.Position + new Vector2(16f, height - 12f), $"+{planets.Count - rows} more", HorizontalAlignment.Left, -1f, 11, new Color(0.58f, 0.78f, 0.88f, 0.72f));
+            DrawString(font, PixelSnap(rect.Position + new Vector2(16f, height - 12f)), $"+{planets.Count - rows} more", HorizontalAlignment.Left, -1f, 11, new Color(0.58f, 0.78f, 0.88f, 0.72f));
         }
     }
 
@@ -945,12 +976,12 @@ public partial class StarMapOverlay : Control
     {
         if (sectorCount > 24 || minCell < 120f || _systems.Count > 140)
         {
-            return 8;
+            return 10;
         }
 
         if (sectorCount > 12 || minCell < 155f || _systems.Count > 72)
         {
-            return 9;
+            return 10;
         }
 
         if (sectorCount > 6 || minCell < 190f || _systems.Count > 36)
@@ -960,7 +991,7 @@ public partial class StarMapOverlay : Control
 
         return _systems.Count switch
         {
-            > 96 => 9,
+            > 96 => 10,
             > 48 => 10,
             > 24 => 11,
             _ => 12
@@ -1041,6 +1072,11 @@ public partial class StarMapOverlay : Control
             Math.Clamp(point.Y, rect.Position.Y, rect.End.Y));
     }
 
+    private static Vector2 PixelSnap(Vector2 point)
+    {
+        return new Vector2(MathF.Round(point.X), MathF.Round(point.Y));
+    }
+
     private static Vector2 QuadraticPoint(Vector2 start, Vector2 control, Vector2 end, float t)
     {
         var inverse = 1f - t;
@@ -1091,18 +1127,35 @@ public partial class StarMapOverlay : Control
     private static Color SectorFill(string key)
     {
         var h = Hash01(key, 19);
-        return new Color(0.015f + h * 0.030f, 0.070f + h * 0.030f, 0.14f + h * 0.040f, 0.24f);
+        return new Color(0.015f + h * 0.028f, 0.060f + h * 0.026f, 0.12f + h * 0.036f, 0.17f);
     }
 
     private static Color SectorLine(string key)
     {
         var h = Hash01(key, 29);
-        return new Color(0.08f + h * 0.12f, 0.64f + h * 0.24f, 1f, 0.52f);
+        return new Color(0.08f + h * 0.12f, 0.62f + h * 0.22f, 1f, 0.38f);
     }
 
     private static Color WithAlpha(Color color, float alpha)
     {
         return new Color(color.R, color.G, color.B, Math.Clamp(alpha, 0f, 1f));
+    }
+
+    private static Texture2D? LoadOptionalTexture(string resourcePath)
+    {
+        if (!ResourceLoader.Exists(resourcePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ResourceLoader.Load<Texture2D>(resourcePath);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static float Hash01(int value)

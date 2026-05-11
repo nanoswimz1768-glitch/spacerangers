@@ -458,11 +458,11 @@ Input actions создаются в `GameRoot.ConfigureInputMap()`.
 - системы группируются по сектору, каждая система получает кружок цвета своей звезды, имя, current marker и tuned target marker;
 - левая кнопка мыши по system glyph/label выбирает систему; между current system и выбранной системой рисуется curved dashed warp route;
 - удержание правой кнопки мыши над system glyph/label открывает planet popup со списком планет, цветными маркерами, названиями и типами;
-- правая панель выбранной системы показывает readable star display name, size, corona intensity, animation/motion speed и число планет;
+- правая панель выбранной системы показывает только навигационные данные: имя системы, сектор, число планет, target/tuned status; физические характеристики звезды на Star Map не выводятся;
 - сектор может быть разной геометрической формы, но layout выбирает более вместительные формы для плотных секторов, чтобы красота не ломала читаемость;
 - при большом числе секторов карта адаптирует grid, star radius, sector font, system font и плотность подписей; routine labels могут скрываться, но current/tuned/selected/hovered labels остаются видимыми и выбранная система всегда раскрывается в правой панели;
 - layout карты кэшируется и пересчитывается только при изменении списка systems, выбора или viewport size; pulse/redraw не должен каждый кадр пересоздавать sector polygons/layout arrays;
-- `OK` на выбранной системе вызывает только настройку warp target и обновляет HUD `WARP -> Target`; фактический warp между системами пока не выполняется.
+- `OK` на выбранной системе настраивает warp target, обновляет HUD `WARP -> Target` и закрывает карту; фактический warp между системами пока не выполняется.
 
 Диагностический режим без изменения generated JSON:
 
@@ -1192,7 +1192,7 @@ Godot runtime capture --star-map-fixture-sectors=6 --star-map-fixture-systems-pe
 ```text
 StarMapOverlay input moved to explicit _Input/SetInputAsHandled; map clicks no longer depend on _GuiInput routing.
 Left click selects a system and draws curved dashed warp route; OK tunes warp target.
-Right-hold on a star opens planet popup with planet names/types; side panel now shows star display name, size, corona and motion.
+Right-hold on a star opens planet popup with planet names/types; side panel no longer exposes star physical characteristics.
 Map background/star glyphs/text shadows refreshed for readability.
 dotnet build game/SpaceManagersPrototype.sln: 0 warnings, 0 errors
 dotnet run --project tests/SpaceManagers.Core.Tests/SpaceManagers.Core.Tests.csproj --no-restore: 39 tests passed
@@ -1200,6 +1200,23 @@ dotnet run --project tests/SpaceManagers.PerfSmoke/SpaceManagers.PerfSmoke.cspro
 Godot runtime capture --open-star-map: success, PNG в diagnostics/star_map_v2_visual_final/
 Godot runtime capture --open-star-map --star-map-select=sol: success, PNG в diagnostics/star_map_v2_route_curve/
 Godot runtime capture --open-star-map --star-map-inspect=orion_0001: success, PNG в diagnostics/star_map_v2_popup_final/
+```
+
+Последняя проверка после Lazyweb-informed Star Map visual polish от 2026-05-11:
+
+```text
+Lazyweb native MCP namespace still did not appear in the active tool list after restart; verified Lazyweb through the local MCP bridge and used visual references for the map pass.
+StarMapOverlay OK now tunes the selected warp target and closes the map.
+Star Map background now uses the accepted high-res generated tile cold_blue_void_01_tile.png as a subdued navigation backdrop, with reduced procedural noise.
+System glyphs were redrawn as softer luminous navigation stars; sector outlines/fills were toned down; text positions are pixel-snapped and system font never drops below 10px.
+Right panel now removes star archetype/size/corona/motion lines and keeps only system/sector/planet/target status.
+dotnet build game/SpaceManagersPrototype.sln: 0 warnings, 0 errors
+dotnet run --project tests/SpaceManagers.Core.Tests/SpaceManagers.Core.Tests.csproj --no-restore: 39 tests passed
+dotnet run --project tests/SpaceManagers.PerfSmoke/SpaceManagers.PerfSmoke.csproj --no-restore: success
+Godot runtime capture --open-star-map: success, PNG в diagnostics/star_map_v3_visual/
+Godot runtime capture --open-star-map --star-map-select=sol: success, PNG в diagnostics/star_map_v3_route/
+Godot runtime capture --open-star-map --star-map-inspect=orion_0001: success, PNG в diagnostics/star_map_v3_popup/
+Godot runtime capture --star-map-fixture-sectors=24 --star-map-fixture-systems-per-sector=7: success, PNG в diagnostics/star_map_v3_dense/
 ```
 
 Подозрительные зоны для дальнейшей проверки:

@@ -14,7 +14,7 @@ $godotDotnet = Join-Path $godotDotnetDir "dotnet.exe"
 $godot = Join-Path $godotDir "Godot_v4.6.2-stable_mono_win64\Godot_v4.6.2-stable_mono_win64_console.exe"
 $game = Join-Path $root "game"
 $buildDir = Join-Path $root "build\windows"
-$exportExe = Join-Path $buildDir "SpaceRangersPrototype.exe"
+$exportExe = Join-Path $buildDir "SpaceManagersPrototype.exe"
 
 New-Item -ItemType Directory -Force -Path $downloads, $godotDir, $dotnetDir, $buildDir | Out-Null
 
@@ -62,8 +62,8 @@ if (!(Test-Path $windowsTemplate)) {
 $env:DOTNET_ROOT = $godotDotnetDir
 $env:PATH = "$godotDotnetDir;$dotnetDir;$env:PATH"
 
-& $dotnet run --project (Join-Path $root "tests\SpaceRangers.Core.Tests\SpaceRangers.Core.Tests.csproj") --configuration Release
-& $dotnet build (Join-Path $game "SpaceRangersPrototype.csproj") --configuration Release
+& $dotnet run --project (Join-Path $root "tests\SpaceManagers.Core.Tests\SpaceManagers.Core.Tests.csproj") --configuration Release
+& $dotnet build (Join-Path $game "SpaceManagersPrototype.csproj") --configuration Release
 & $godot --headless --path $game --import
 if ($LASTEXITCODE -ne 0) {
     throw "Godot import failed with exit code $LASTEXITCODE."

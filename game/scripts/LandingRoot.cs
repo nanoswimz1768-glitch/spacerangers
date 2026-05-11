@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using Directory = System.IO.Directory;
 using IOPath = System.IO.Path;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public partial class LandingRoot : Node2D
 {

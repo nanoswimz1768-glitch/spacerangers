@@ -1,6 +1,6 @@
 using Godot;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public static class SolarSystem
 {

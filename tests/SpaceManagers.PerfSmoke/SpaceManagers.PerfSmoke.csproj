@@ -2,10 +2,9 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <AssemblyName>SpaceRangers.Core.Tests</AssemblyName>
+    <AssemblyName>SpaceManagers.PerfSmoke</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SpaceRangers.Core\SpaceRangers.Core.csproj" />
+    <ProjectReference Include="..\..\src\SpaceManagers.Core\SpaceManagers.Core.csproj" />
   </ItemGroup>
 </Project>
-

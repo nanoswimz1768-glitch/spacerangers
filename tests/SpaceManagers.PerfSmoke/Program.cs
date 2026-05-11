@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Numerics;
-using SpaceRangers.Core;
+using SpaceManagers.Core;
 
 var scenarios = new (string Name, int Ticks, Func<LocalSimulation> Create)[]
 {
@@ -9,7 +9,7 @@ var scenarios = new (string Name, int Ticks, Func<LocalSimulation> Create)[]
     ("projectile storm: 48 enemies / 1800 spawn requests / capped active projectiles", 900, CreateProjectileStorm),
 };
 
-Console.WriteLine("Space Rangers perf smoke");
+Console.WriteLine("Space Managers perf smoke");
 Console.WriteLine($"Runtime: {Environment.Version}");
 Console.WriteLine();
 

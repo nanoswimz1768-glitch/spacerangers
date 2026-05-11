@@ -1,4 +1,4 @@
-namespace SpaceRangers.Core;
+namespace SpaceManagers.Core;
 
 public enum ShipMode
 {

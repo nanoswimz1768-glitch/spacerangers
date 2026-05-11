@@ -1,6 +1,6 @@
-# Space Rangers Prototype
+# Space Managers Prototype
 
-Windows-first 2D real-time space prototype inspired by the feel of classic Space Rangers, built on Godot 4 .NET and C#.
+Windows-first 2D real-time space prototype inspired by the feel of classic Space Managers, built on Godot 4 .NET and C#.
 
 ## Run
 
@@ -47,6 +47,6 @@ python .\tools\generate_space_textures.py
 .\tools\export_windows.ps1
 ```
 
-The exported build is written to `build/windows/SpaceRangersPrototype.exe`.
+The exported build is written to `build/windows/SpaceManagersPrototype.exe`.
 
 Godot .NET currently receives its SDK from `C:\CodexTools\dotnet-8.0.420` during export/run. The project also keeps a local SDK under `.tools\dotnet`, but the ASCII path avoids Godot/MSBuild path issues when the workspace lives under Cyrillic directories.

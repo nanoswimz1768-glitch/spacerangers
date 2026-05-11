@@ -1,8 +1,8 @@
 using Godot;
-using SpaceRangers.Core;
+using SpaceManagers.Core;
 using File = System.IO.File;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public partial class ProjectileImpactLayer : Node2D
 {

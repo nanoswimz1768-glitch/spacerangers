@@ -1,7 +1,7 @@
 using Godot;
-using SpaceRangers.Core;
+using SpaceManagers.Core;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public partial class AsteroidFireLayer : Node2D
 {

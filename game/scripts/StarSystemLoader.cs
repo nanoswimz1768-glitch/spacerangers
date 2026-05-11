@@ -2,7 +2,7 @@ using Godot;
 using System.Globalization;
 using System.Text.Json;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public static class StarSystemLoader
 {

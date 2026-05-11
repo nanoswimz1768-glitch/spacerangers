@@ -1,14 +1,14 @@
-# Space Rangers Prototype: Technical Manifest
+# Space Managers Prototype: Technical Manifest
 
 Этот документ нужен для быстрого входа в проект другому ИИ-агенту или разработчику. Он описывает текущее устройство игры, важные команды, ключевые файлы, принятые договоренности и места, где легко сломать поведение.
 
 ## Коротко о проекте
 
-`Space Rangers Prototype` - Windows-first 2D real-time space prototype на Godot 4.6.2 Mono/.NET и C#.
+`Space Managers Prototype` - Windows-first 2D real-time space prototype на Godot 4.6.2 Mono/.NET и C#.
 
 Проект разделен на две основные части:
 
-- `src/SpaceRangers.Core` - чистая C#-симуляция без Godot: физика корабля, ввод, снаряды, снапшоты мира.
+- `src/SpaceManagers.Core` - чистая C#-симуляция без Godot: физика корабля, ввод, снаряды, снапшоты мира.
 - `game` - Godot-проект: сцена, рендер, ассеты, визуальные эффекты, фон, планеты, корабли, HUD.
 
 Главная сцена Godot:
@@ -37,7 +37,7 @@
 Перед началом работы в новом чате/ветке:
 
 1. Прочитать этот файл целиком.
-2. Запустить `dotnet build` для `game/SpaceRangersPrototype.csproj`.
+2. Запустить `dotnet build` для `game/SpaceManagersPrototype.csproj`.
 3. Если меняется core-логика, запустить core tests.
 4. Если меняется визуал Godot, сделать headless smoke и, по возможности, проверить в реальной игре через `tools/run_game.ps1`.
 
@@ -46,30 +46,30 @@
 Запуск игры:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 & ".\tools\run_game.ps1"
 ```
 
 Тесты core-симуляции:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 & ".\tools\test_core.ps1"
 ```
 
 Сборка Godot C# проекта:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 $env:DOTNET_ROOT = "C:\CodexTools\dotnet-8.0.420"
 $env:PATH = "$env:DOTNET_ROOT;$env:PATH"
-& "C:\CodexTools\dotnet-8.0.420\dotnet.exe" build ".\game\SpaceRangersPrototype.csproj" --configuration Debug
+& "C:\CodexTools\dotnet-8.0.420\dotnet.exe" build ".\game\SpaceManagersPrototype.csproj" --configuration Debug
 ```
 
 Headless-проверка Godot:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 $dotnetDir = "C:\CodexTools\dotnet-8.0.420"
 $env:DOTNET_ROOT = $dotnetDir
 $env:PATH = "$dotnetDir;$env:PATH"
@@ -81,7 +81,7 @@ $godot = ".\.tools\godot\Godot_v4.6.2-stable_mono_win64\Godot_v4.6.2-stable_mono
 Stress-проверка с врагами:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 $dotnetDir = "C:\CodexTools\dotnet-8.0.420"
 $env:DOTNET_ROOT = $dotnetDir
 $env:PATH = "$dotnetDir;$env:PATH"
@@ -92,21 +92,21 @@ $godot = ".\.tools\godot\Godot_v4.6.2-stable_mono_win64\Godot_v4.6.2-stable_mono
 Запуск конкретной star system:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 & ".\tools\run_game.ps1" -- --system=orion_0002
 ```
 
 Запуск с конкретным кораблем для визуальной проверки щитов/масштаба:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 & ".\tools\run_game.ps1" -- --ship 2KlissanBattleship
 ```
 
 Пересборка текущего generated-сектора Orion:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 python ".\tools\process_planet_surface_maps.py" --update-catalog
 python ".\tools\create_background_tiles.py" --update-catalog
 python ".\tools\generate_star_systems.py" --seed 3311337 --clean --write-image-prompts
@@ -115,7 +115,7 @@ python ".\tools\generate_star_systems.py" --seed 3311337 --clean --write-image-p
 Visual frame capture для проверки generated-системы:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 $godot = ".\.tools\godot\Godot_v4.6.2-stable_mono_win64\Godot_v4.6.2-stable_mono_win64_console.exe"
 & $godot --path ".\game" -- --system=orion_0002 --stress-near "Kora Vyrum II" --capture-frame-dir ".\diagnostics\visual_check" --capture-frame-prefix kora_check --capture-frame-quit
 ```
@@ -123,20 +123,20 @@ $godot = ".\.tools\godot\Godot_v4.6.2-stable_mono_win64\Godot_v4.6.2-stable_mono
 Экспорт Windows exe:
 
 ```powershell
-cd "C:\Users\Максим\Desktop\Игры\Space Rangers"
+cd "C:\Users\Максим\Desktop\Игры\Space Managers"
 & ".\tools\export_windows.ps1"
 ```
 
 Результат экспорта:
 
 ```text
-build/windows/SpaceRangersPrototype.exe
+build/windows/SpaceManagersPrototype.exe
 ```
 
 Последний подготовленный friend-friendly archive лежал здесь:
 
 ```text
-build/package/SpaceRangersPrototype_Windows_2026-05-08.zip
+build/package/SpaceManagersPrototype_Windows_2026-05-08.zip
 ```
 
 Внутри package-папки есть `START_GAME.bat`, `README_START_HERE.txt` и копия технического манифеста. Если манифест или код менялись после сборки архива, архив нужно пересобрать, иначе внутри будет старая копия.
@@ -169,8 +169,8 @@ game/assets/ships/              Ship sprites and ships_manifest.json
 game/scenes/Main.tscn           Main Godot scene
 game/scenes/Landing.tscn        Isometric station/landing prototype scene
 game/scripts/                   Godot C# scripts
-src/SpaceRangers.Core/          Engine-agnostic C# simulation
-tests/SpaceRangers.Core.Tests/  Lightweight executable tests
+src/SpaceManagers.Core/          Engine-agnostic C# simulation
+tests/SpaceManagers.Core.Tests/  Lightweight executable tests
 tools/                          Run/export/asset generation scripts
 tmp/                            Temporary previews/generated scratch output
 Корабли/                        Source/reference ship material
@@ -237,18 +237,18 @@ tmp/                            Temporary previews/generated scratch output
 
 Ключевые файлы:
 
-- `src/SpaceRangers.Core/InputCommand.cs`
-- `src/SpaceRangers.Core/LocalSimulation.cs`
-- `src/SpaceRangers.Core/SimulationConfig.cs`
-- `src/SpaceRangers.Core/ShipState.cs`
-- `src/SpaceRangers.Core/ShipHitbox.cs`
-- `src/SpaceRangers.Core/CombatStats.cs`
-- `src/SpaceRangers.Core/ProjectileState.cs`
-- `src/SpaceRangers.Core/AsteroidState.cs`
-- `src/SpaceRangers.Core/AsteroidEventState.cs`
-- `src/SpaceRangers.Core/AsteroidPhysics.cs`
-- `src/SpaceRangers.Core/WorldSnapshot.cs`
-- `src/SpaceRangers.Core/WorldBounds.cs`
+- `src/SpaceManagers.Core/InputCommand.cs`
+- `src/SpaceManagers.Core/LocalSimulation.cs`
+- `src/SpaceManagers.Core/SimulationConfig.cs`
+- `src/SpaceManagers.Core/ShipState.cs`
+- `src/SpaceManagers.Core/ShipHitbox.cs`
+- `src/SpaceManagers.Core/CombatStats.cs`
+- `src/SpaceManagers.Core/ProjectileState.cs`
+- `src/SpaceManagers.Core/AsteroidState.cs`
+- `src/SpaceManagers.Core/AsteroidEventState.cs`
+- `src/SpaceManagers.Core/AsteroidPhysics.cs`
+- `src/SpaceManagers.Core/WorldSnapshot.cs`
+- `src/SpaceManagers.Core/WorldBounds.cs`
 
 Текущие важные параметры в `SimulationConfig.cs`:
 
@@ -345,7 +345,7 @@ Hitbox:
 - collision с projectile проверяется через segment-vs-oriented-box, чтобы быстрые снаряды не пролетали сквозь корабль между кадрами;
 - collision между кораблями использует broad-phase radius и затем oriented-rectangle SAT overlap/manifold по `ShipHitbox`;
 - границы мира пока используют conservative bounding radius от hitbox;
-- формула shield half-extents должна быть синхронна между `src/SpaceRangers.Core/LocalSimulation.cs::ShieldHalfExtents()` и `game/scripts/ProjectileImpactLayer.cs::ShieldShapeFrom()`. Не менять одно место без второго.
+- формула shield half-extents должна быть синхронна между `src/SpaceManagers.Core/LocalSimulation.cs::ShieldHalfExtents()` и `game/scripts/ProjectileImpactLayer.cs::ShieldShapeFrom()`. Не менять одно место без второго.
 
 Enemy/NPC combat:
 
@@ -364,7 +364,7 @@ Enemy/NPC combat:
 
 Asteroids:
 
-- астероиды живут в `SpaceRangers.Core`, не в Godot-only визуале;
+- астероиды живут в `SpaceManagers.Core`, не в Godot-only визуале;
 - стартовый мир сидируется несколькими астероидами через `LocalSimulation.SeedAsteroids`;
 - новые астероиды спавнятся с краев мира и летят внутрь с разной скоростью/тангенциальной составляющей;
 - солнце влияет на траекторию через `AsteroidPhysics.SolarGravity`;
@@ -850,7 +850,7 @@ StarParallax = 0.32f
 Последняя проверка после добавления ship-vs-ship collision и AI avoidance:
 
 ```text
-dotnet build game/SpaceRangersPrototype.sln: success
+dotnet build game/SpaceManagersPrototype.sln: success
 core tests: 38 passed
 
 Core perf smoke, Release:
@@ -868,7 +868,7 @@ combat 24 enemies / 30 sec / autopilot: avg_fps 101.1, min_fps 16.0, max_frame_m
 Проверка после смягчения ship collision separation:
 
 ```text
-dotnet build game/SpaceRangersPrototype.sln: success
+dotnet build game/SpaceManagersPrototype.sln: success
 core tests: 38 passed
 Core perf smoke, Release:
 offscreen pursuit 80 enemies: 0.1614 ms/tick, 7560 B/tick
@@ -880,7 +880,7 @@ Godot stress 12 enemies / 20 sec / autopilot: avg_fps 114.6, min_fps 59.0, max_f
 Последняя performance-проверка после pass по аллокациям, projectile hit scan и Godot stderr:
 
 ```text
-dotnet build game/SpaceRangersPrototype.sln: success
+dotnet build game/SpaceManagersPrototype.sln: success
 core tests: 35 passed
 
 Core perf smoke, Release:
@@ -901,7 +901,7 @@ combat 24 enemies / 60 sec / autopilot accurate memory: avg_fps 92.5, min_fps 62
 Последняя проверка после generated systems/background/planet surface pass:
 
 ```text
-dotnet build game/SpaceRangersPrototype.csproj --no-restore --nologo: success
+dotnet build game/SpaceManagersPrototype.csproj --no-restore --nologo: success
 core tests: 39 passed
 
 Godot generated system smoke:
@@ -919,7 +919,7 @@ Planet surface seam fix: diagnostics/visual_check_20260510/planet_surface_fix/
 ```text
 python -m py_compile tools/process_highres_imagegen_assets.py tools/prepare_highres_generation_batch.py tools/generate_star_systems.py: success
 python tools/process_highres_imagegen_assets.py --report tools/generated/highres_asset_report.json: stars 2, planets 7, backgrounds 2, failed 0
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
 
 Godot visual captures:
 Kora Vyrum / warm_gas_giant high-res: game/diagnostics/highres_orion_0002/kora_highres_01.png
@@ -932,7 +932,7 @@ Nara Lenos / ringed_giant high-res: game/diagnostics/highres_orion_0001_final/na
 python -m py_compile tools/generate_star_systems.py tools/process_highres_imagegen_assets.py tools/prepare_highres_generation_batch.py: success
 python tools/generate_star_systems.py --seed 3311337 --clean --write-image-prompts: success, 2 generated systems
 orion_0001/orion_0002 backgrounds: high-res 4096 tile paths, TextureAlpha 0.56, TextureParallax 0.08, StarParallax 0.32 (historical; current baseline is TextureAlpha 1.0)
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
 Godot --headless --import: success
 Kora Vyrum SpaceBackdropView capture: game/diagnostics/space_backdrop_view_orion_0002/kora_backdrop_view_00.png and _01.png
 Nara Lenos SpaceBackdropView capture: game/diagnostics/space_backdrop_view_orion_0001/nara_backdrop_view_00.png and _01.png
@@ -948,7 +948,7 @@ backup: tools/generated/backups/background_tiles_20260510_pre_demirror_v4
 report: tools/generated/background_demirror_report.json
 mirror max: Sol 1.000 -> 0.717, Kora/cold_blue_void 0.402 -> 0.239, Nara/smoky_amber_cloud 0.074 -> 0.165
 seam max stayed low: <= 0.00184
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
 Godot --headless --import: success
 Godot headless smoke, 1 enemy / 2 sec: Sol avg_fps 129.0, Kora avg_fps 118.7
 captures: game/diagnostics/background_demirror_v4_sol, background_demirror_v4_orion_0001, background_demirror_v4_orion_0002
@@ -963,7 +963,7 @@ mirror max: Sol 1.000 -> 0.584, Kora/cold_blue_void 0.402 -> 0.182, Nara/smoky_a
 SpaceBackdropView: stable TexturePhaseOffset keeps tile seam/origin away from system center
 runtime brightness: TextureAlpha 0.56, TextureTintPassthrough 0.16, TextureBrightnessBoost 1.04 (historical; current baseline uses source colors directly)
 python tools/generate_star_systems.py --seed 3311337 --clean --write-image-prompts: success
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
 Godot headless smoke, 1 enemy / 2 sec: Sol avg_fps 135.0, Kora avg_fps 121.3
 captures: game/diagnostics/background_runtime_alpha_sol, background_runtime_alpha_orion_0001, background_runtime_alpha_orion_0002
 ```
@@ -978,7 +978,7 @@ report: tools/generated/background_demirror_report.json
 mirror max: Sol 0.584 -> 0.202, Nara/smoky_amber_cloud 0.204 -> 0.131, Kora/cold_blue_void 0.182 -> 0.311; visual capture no longer reads as mirrored, metric alone is not sufficient
 seams stayed acceptable: <= 0.00777
 Godot --headless --import: success
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug: 0 warnings, 0 errors
 Godot headless smoke, 1 enemy / 2 sec: Sol avg_fps 114.8, Kora avg_fps 114.8
 captures: game/diagnostics/background_asymmetric_v6_sol, background_asymmetric_v6_orion_0001, background_asymmetric_v6_orion_0002
 ```
@@ -990,7 +990,7 @@ restored active Sol/Kora/Nara background tiles from tools/generated/backups/back
 acid v6 backup kept at tools/generated/backups/background_tiles_20260510_acid_asymmetric_v6_before_restore
 SpaceBackdropView: primary texture pass + weak secondary/tertiary phase-offset passes, PNG composition unchanged
 python -m py_compile tools/demirror_background_tiles.py tools/process_highres_imagegen_assets.py tools/generate_space_textures.py with PYTHONPYCACHEPREFIX: success
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot --headless --import --quit: success
 Godot headless smoke, 1 enemy / 2 sec: Sol avg_fps 113.9, Kora avg_fps 129.0
 ```
@@ -1001,7 +1001,7 @@ Godot headless smoke, 1 enemy / 2 sec: Sol avg_fps 113.9, Kora avg_fps 129.0
 SpaceBackdropView texture color: Colors.White, no TextureTint color grade, no brightness boost, primary alpha 1.0
 Sol/generated textureAlpha updated to 1.0; generate_star_systems.py writes textureAlpha 1.0
 python -m py_compile tools/generate_star_systems.py tools/process_highres_imagegen_assets.py tools/generate_space_textures.py with PYTHONPYCACHEPREFIX: success
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot --headless --import --quit: success
 Godot headless smoke, 1 enemy / 2 sec: Sol avg_fps 145.0, Kora avg_fps 145.0
 ```
@@ -1015,21 +1015,21 @@ python tools/generate_star_systems.py --seed 3311337 --clean --write-image-promp
 orion_0001 Planet Showcase: 12 planets, all surfaceMap paths under res://assets/generated/planet_surfaces/
 SpaceBackdropView high-res background tiles: seed-based texture variation via StarfieldSeed/NebulaSeed, per-system X/Y scale, layer alpha and parallax offsets; Sol/legacy paths keep baseline behavior
 python -m py_compile tools/generate_star_systems.py tools/process_highres_imagegen_assets.py: success
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot headless smoke --system=orion_0001 --star-frames=experimental: success, Startup star system: Planet Showcase
 ```
 
 Последняя проверка после player-only ship outline от 2026-05-11:
 
 ```text
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot runtime capture --system=orion_0001 --star-frames=experimental: success, Startup star system: Planet Showcase; итоговые PNG переложены в diagnostics/player-outline-check/
 ```
 
 Последняя проверка после procedural ship idle animation от 2026-05-11:
 
 ```text
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot runtime capture --system=orion_0001 --star-frames=experimental: success, PNG в diagnostics/ship-idle-animation-check/
 Godot stress --system=orion_0001 --star-frames=experimental --stress-enemies=4 --stress-seconds=6 --stress-autopilot: avg_fps 113.8, min_fps 44.0, max_frame_ms 13.5
 ```
@@ -1037,7 +1037,7 @@ Godot stress --system=orion_0001 --star-frames=experimental --stress-enemies=4 -
 Последняя проверка после ship idle bank v1.1 от 2026-05-11:
 
 ```text
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2KlissanBattleship: success, PNG в diagnostics/ship-idle-bank-v11/
 Godot stress --system=orion_0001 --star-frames=experimental --stress-enemies=4 --stress-seconds=6 --stress-autopilot: avg_fps 113.5, min_fps 47.0, max_frame_ms 14.2
 ```
@@ -1045,7 +1045,7 @@ Godot stress --system=orion_0001 --star-frames=experimental --stress-enemies=4 -
 Последняя проверка после asset-aware ship rig v2 от 2026-05-11:
 
 ```text
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot runtime capture --system=orion_0001 --star-frames=experimental: success, PNG в diagnostics/ship-rig-v2/player_rig_v2b_*.png
 Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2KlissanBattleship: success, PNG в diagnostics/ship-rig-v2/klissan_battleship_rig_v2b_*.png
 Godot stress --system=orion_0001 --star-frames=experimental --stress-enemies=4 --stress-seconds=6 --stress-autopilot: avg_fps 106.1, min_fps 42.0, max_frame_ms 13.9
@@ -1054,7 +1054,7 @@ Godot stress --system=orion_0001 --star-frames=experimental --stress-enemies=4 -
 Последняя проверка после ship idle shader-bank v3 от 2026-05-11:
 
 ```text
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot runtime capture --system=orion_0001 --star-frames=experimental: success, PNG в diagnostics/ship-shader-bank-v3/player_shader_bank_v3c_*.png
 Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2KlissanBattleship: success, PNG в diagnostics/ship-shader-bank-v3/klissan_shader_bank_v3c_*.png
 Godot stress --system=orion_0001 --star-frames=experimental --stress-enemies=4 --stress-seconds=6 --stress-autopilot: avg_fps 115.8, min_fps 47.0, max_frame_ms 13.4
@@ -1063,7 +1063,7 @@ Godot stress --system=orion_0001 --star-frames=experimental --stress-enemies=4 -
 Последняя проверка после player aura + no-darkening shader follow-up от 2026-05-11:
 
 ```text
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot runtime capture --system=orion_0001 --star-frames=experimental: success, PNG в diagnostics/ship-player-aura-v3/player_aura_v3b_*.png
 Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2KlissanBattleship: success, PNG в diagnostics/ship-player-aura-v3/klissan_aura_v3b_*.png
 ```
@@ -1071,7 +1071,7 @@ Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2Kli
 Последняя проверка после silhouette palette aura v4 от 2026-05-11:
 
 ```text
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot runtime capture --system=orion_0001 --star-frames=experimental: success, PNG в diagnostics/ship-silhouette-aura-v4/player_silhouette_aura_v4b_*.png
 Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2KlissanBattleship: success, PNG в diagnostics/ship-silhouette-aura-v4/klissan_silhouette_aura_v4b_*.png
 ```
@@ -1079,7 +1079,7 @@ Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2Kli
 Последняя проверка после electronic silhouette aura v5 от 2026-05-11:
 
 ```text
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot runtime capture --system=orion_0001 --star-frames=experimental: success, PNG в diagnostics/ship-electronic-aura-v5/player_electronic_aura_v5_*.png
 Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2KlissanBattleship: success, PNG в diagnostics/ship-electronic-aura-v5/klissan_electronic_aura_v5_*.png
 Godot runtime capture --system=orion_0001 --star-frames=experimental --stress-enemies=4 --stress-autopilot: success, PNG в diagnostics/ship-electronic-aura-v5/multi_electronic_aura_v5_*.png
@@ -1089,7 +1089,7 @@ Godot runtime capture --system=orion_0001 --star-frames=experimental --stress-en
 
 ```text
 ShipPlayerAura / ShowPlayerOutline runtime references removed from game/scripts/ShipView.cs and game/scripts/GameRoot.cs
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 ```
 
 Последняя проверка после manual ship PNG re-ingest от 2026-05-11:
@@ -1099,7 +1099,7 @@ ships_manifest.json refreshed from current game/assets/ships PNG alpha bounds; o
 backup: .tools/backups/ships_reingest_20260511_132701
 review: diagnostics/ships_after_manual_png_reingest_final_ports.png
 report: diagnostics/ships_after_manual_png_reingest_report.json
-dotnet build game/SpaceRangersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
+dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2MalocT: success, PNG в diagnostics/ships_after_manual_png_runtime/maloc_t_reingest_*.png
 Godot runtime capture --system=orion_0001 --star-frames=experimental --ship 2KlissanBattleship: success, PNG в diagnostics/ships_after_manual_png_runtime/klissan_battleship_reingest_*.png
 Godot runtime capture --system=orion_0001 --star-frames=experimental --stress-enemies=4 --stress-autopilot: success, PNG в diagnostics/ships_after_manual_png_runtime/multi_reingest_*.png
@@ -1110,9 +1110,9 @@ Godot runtime capture --system=orion_0001 --star-frames=experimental --stress-en
 ```text
 ShipView refactor: dormant ShipBankShaderCode/ShaderMaterial path removed; old polygon cluster wake helpers removed after line-based thrust became accepted.
 SpaceBackground: generated stars now prefer matching star_frames_experimental by default; stable fallback is explicit via --star-frames=stable / --stable-star-frames / --experimental-star-frames=false.
-dotnet build game/SpaceRangersPrototype.csproj: 0 warnings, 0 errors
-dotnet run --project tests/SpaceRangers.Core.Tests/SpaceRangers.Core.Tests.csproj: 39 tests passed
-dotnet run --project tests/SpaceRangers.PerfSmoke/SpaceRangers.PerfSmoke.csproj -c Release: success
+dotnet build game/SpaceManagersPrototype.csproj: 0 warnings, 0 errors
+dotnet run --project tests/SpaceManagers.Core.Tests/SpaceManagers.Core.Tests.csproj: 39 tests passed
+dotnet run --project tests/SpaceManagers.PerfSmoke/SpaceManagers.PerfSmoke.csproj -c Release: success
 Godot headless smoke --system=orion_0001: success, Startup star system: Planet Showcase; primary frames loaded from res://assets/generated/star_frames_experimental/yellow_main_sequence_01; avg_fps 122.8, min_fps 68.0, max_frame_ms 6.9
 Godot headless smoke --system=orion_0001 --star-frames=stable: success; stable fallback path used; avg_fps 136.0, min_fps 136.0, max_frame_ms 6.9
 ```
@@ -1284,8 +1284,8 @@ python tools/generate_star_systems.py --seed 3311337 --clean --write-image-promp
 
 Перед финальным ответом после правок желательно:
 
-1. Запустить core tests, если менялась `src/SpaceRangers.Core`.
-2. Запустить `dotnet build` для `game/SpaceRangersPrototype.csproj`.
+1. Запустить core tests, если менялась `src/SpaceManagers.Core`.
+2. Запустить `dotnet build` для `game/SpaceManagersPrototype.csproj`.
 3. Запустить Godot headless import/smoke, если менялись Godot scripts/assets.
 4. Если менялась визуальная часть, проверить в реальной игре через `tools/run_game.ps1`.
 5. Обновить `TECHNICAL_MANIFEST.md` после правок.

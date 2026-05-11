@@ -1,7 +1,7 @@
 using CoreVector2 = System.Numerics.Vector2;
 using GodotVector2 = Godot.Vector2;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public static class Conversions
 {

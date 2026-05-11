@@ -7,5 +7,5 @@ if (!(Test-Path $dotnet)) {
 
 $env:DOTNET_ROOT = Split-Path -Parent $dotnet
 $env:PATH = "$env:DOTNET_ROOT;$env:PATH"
-& $dotnet run --project (Join-Path $root "tests\SpaceRangers.Core.Tests\SpaceRangers.Core.Tests.csproj") --configuration Release
+& $dotnet run --project (Join-Path $root "tests\SpaceManagers.Core.Tests\SpaceManagers.Core.Tests.csproj") --configuration Release
 

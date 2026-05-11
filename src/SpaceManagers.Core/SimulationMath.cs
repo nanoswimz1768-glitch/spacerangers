@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace SpaceRangers.Core;
+namespace SpaceManagers.Core;
 
 public static class SimulationMath
 {

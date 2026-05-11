@@ -2,7 +2,7 @@ using Godot;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public static class ShipCatalog
 {

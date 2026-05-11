@@ -1,7 +1,7 @@
 using Godot;
 using File = System.IO.File;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public enum ShipExplosionKind
 {

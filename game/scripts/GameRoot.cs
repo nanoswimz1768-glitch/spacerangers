@@ -1,12 +1,12 @@
 using Godot;
-using SpaceRangers.Core;
+using SpaceManagers.Core;
 using System.Collections;
 using System.Runtime.CompilerServices;
 using CoreVector2 = System.Numerics.Vector2;
 using Directory = System.IO.Directory;
 using IOPath = System.IO.Path;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public partial class GameRoot : Node2D
 {

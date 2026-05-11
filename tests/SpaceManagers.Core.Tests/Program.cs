@@ -1,5 +1,5 @@
 using System.Numerics;
-using SpaceRangers.Core;
+using SpaceManagers.Core;
 
 var tests = new (string Name, Action Body)[]
 {

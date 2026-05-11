@@ -1,6 +1,6 @@
 using System.Numerics;
 
-namespace SpaceRangers.Core;
+namespace SpaceManagers.Core;
 
 public readonly record struct ProjectileImpactState(
     int Id,

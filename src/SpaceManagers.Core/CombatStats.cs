@@ -1,4 +1,4 @@
-namespace SpaceRangers.Core;
+namespace SpaceManagers.Core;
 
 public readonly record struct CombatStats(
     float Shield,

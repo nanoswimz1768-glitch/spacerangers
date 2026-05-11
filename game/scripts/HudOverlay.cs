@@ -1,8 +1,8 @@
 using Godot;
-using SpaceRangers.Core;
+using SpaceManagers.Core;
 using CoreVector2 = System.Numerics.Vector2;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public partial class HudOverlay : Control
 {

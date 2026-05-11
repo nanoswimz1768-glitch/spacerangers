@@ -126,7 +126,7 @@ def star_prompt(star: dict[str, Any], variant: int) -> str:
     return "\n".join(
         [
             "Use case: stylized-concept",
-            "Asset type: high-resolution star texture source for Space Rangers Prototype",
+            "Asset type: high-resolution star texture source for Space Managers Prototype",
             f"Primary request: {star['imagePrompt']}",
             f"Variant: {variant:02d}, keep the same stellar archetype but change plasma pattern and granular surface detail.",
             "Resolution target: square high-resolution source, suitable for a 2048x2048 runtime star disk.",
@@ -142,7 +142,7 @@ def background_prompt(backdrop: dict[str, Any], variant: int) -> str:
     return "\n".join(
         [
             "Use case: stylized-concept",
-            "Asset type: high-resolution seamless space background source for Space Rangers Prototype",
+            "Asset type: high-resolution seamless space background source for Space Managers Prototype",
             f"Primary request: {backdrop['imagePrompt']}",
             f"Variant: {variant:02d}, preserve the archetype but change star placement and nebula shape.",
             "Resolution target: 4K landscape source, processed later into a 4096x4096 runtime tile.",
@@ -158,7 +158,7 @@ def planet_prompt(planet: dict[str, Any], variant: int) -> str:
     return "\n".join(
         [
             "Use case: stylized-concept",
-            "Asset type: high-resolution seamless equirectangular planet surface source for Space Rangers Prototype",
+            "Asset type: high-resolution seamless equirectangular planet surface source for Space Managers Prototype",
             f"Primary request: {planet['imagePrompt']}",
             f"Variant: {variant:02d}, keep the archetype recognizable but vary terrain and weather pattern.",
             "Resolution target: 2:1 high-resolution source, ideally 3840x1920 or larger, processed later to 4096x2048.",

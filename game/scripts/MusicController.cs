@@ -1,7 +1,7 @@
 using Godot;
 using System.IO;
 
-namespace SpaceRangersPrototype;
+namespace SpaceManagersPrototype;
 
 public partial class MusicController : Node
 {

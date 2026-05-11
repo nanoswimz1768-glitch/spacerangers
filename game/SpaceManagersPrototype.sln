@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceRangersPrototype", "SpaceRangersPrototype.csproj", "{A9001D81-173B-46BA-B738-0E607FC0C869}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceManagersPrototype", "SpaceManagersPrototype.csproj", "{A9001D81-173B-46BA-B738-0E607FC0C869}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceRangers.Core", "..\src\SpaceRangers.Core\SpaceRangers.Core.csproj", "{55B93529-397D-477E-A170-836637469498}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceManagers.Core", "..\src\SpaceManagers.Core\SpaceManagers.Core.csproj", "{55B93529-397D-477E-A170-836637469498}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -1,0 +1,54 @@
+{
+  "sheets": {
+    "pilot": "tools/generated/imagegen_sheets/pilot_concept_sheet.png",
+    "stars": "tools/generated/imagegen_sheets/stars_concept_sheet.png",
+    "planets": "tools/generated/imagegen_sheets/planets_concept_sheet.png",
+    "backgrounds": "tools/generated/imagegen_sheets/backgrounds_concept_sheet.png"
+  },
+  "stars": {
+    "red_dwarf_sheet01": "res://assets/generated/stars/red_dwarf_sheet01.png",
+    "orange_dwarf_sheet01": "res://assets/generated/stars/orange_dwarf_sheet01.png",
+    "yellow_main_sequence_sheet01": "res://assets/generated/stars/yellow_main_sequence_sheet01.png",
+    "blue_white_star_sheet01": "res://assets/generated/stars/blue_white_star_sheet01.png",
+    "white_dwarf_sheet01": "res://assets/generated/stars/white_dwarf_sheet01.png",
+    "red_giant_sheet01": "res://assets/generated/stars/red_giant_sheet01.png",
+    "amber_giant_sheet01": "res://assets/generated/stars/amber_giant_sheet01.png",
+    "violet_anomaly_sheet01": "res://assets/generated/stars/violet_anomaly_sheet01.png",
+    "green_exotic_sheet01": "res://assets/generated/stars/green_exotic_sheet01.png",
+    "neutron_like_sheet01": "res://assets/generated/stars/neutron_like_sheet01.png",
+    "ember_remnant_sheet01": "res://assets/generated/stars/ember_remnant_sheet01.png",
+    "cyan_compact_sheet01": "res://assets/generated/stars/cyan_compact_sheet01.png"
+  },
+  "planets": {
+    "scorched_rock_sheet01": "res://assets/generated/planets/scorched_rock_sheet01.png",
+    "barren_rock_sheet01": "res://assets/generated/planets/barren_rock_sheet01.png",
+    "desert_sheet01": "res://assets/generated/planets/desert_sheet01.png",
+    "volcanic_sheet01": "res://assets/generated/planets/volcanic_sheet01.png",
+    "ocean_sheet01": "res://assets/generated/planets/ocean_sheet01.png",
+    "earthlike_sheet01": "res://assets/generated/planets/earthlike_sheet01.png",
+    "ice_sheet01": "res://assets/generated/planets/ice_sheet01.png",
+    "toxic_sheet01": "res://assets/generated/planets/toxic_sheet01.png",
+    "warm_gas_giant_sheet01": "res://assets/generated/planets/warm_gas_giant_sheet01.png",
+    "cold_gas_giant_sheet01": "res://assets/generated/planets/cold_gas_giant_sheet01.png",
+    "ringed_giant_sheet01": "res://assets/generated/planets/ringed_giant_sheet01.png",
+    "shattered_world_sheet01": "res://assets/generated/planets/shattered_world_sheet01.png",
+    "purple_storm_giant_sheet01": "res://assets/generated/planets/purple_storm_giant_sheet01.png",
+    "rust_dust_world_sheet01": "res://assets/generated/planets/rust_dust_world_sheet01.png",
+    "dark_carbon_world_sheet01": "res://assets/generated/planets/dark_carbon_world_sheet01.png",
+    "turquoise_methane_world_sheet01": "res://assets/generated/planets/turquoise_methane_world_sheet01.png"
+  },
+  "backgrounds": {
+    "cold_blue_void_sheet01": "res://assets/generated/backgrounds/cold_blue_void_sheet01.png",
+    "rust_dust_lane_sheet01": "res://assets/generated/backgrounds/rust_dust_lane_sheet01.png",
+    "crimson_sparse_field_sheet01": "res://assets/generated/backgrounds/crimson_sparse_field_sheet01.png",
+    "emerald_mist_sheet01": "res://assets/generated/backgrounds/emerald_mist_sheet01.png",
+    "violet_rift_sheet01": "res://assets/generated/backgrounds/violet_rift_sheet01.png",
+    "golden_cluster_sheet01": "res://assets/generated/backgrounds/golden_cluster_sheet01.png",
+    "black_silent_reach_sheet01": "res://assets/generated/backgrounds/black_silent_reach_sheet01.png",
+    "teal_nebula_shelf_sheet01": "res://assets/generated/backgrounds/teal_nebula_shelf_sheet01.png",
+    "pale_star_nursery_sheet01": "res://assets/generated/backgrounds/pale_star_nursery_sheet01.png",
+    "deep_indigo_field_sheet01": "res://assets/generated/backgrounds/deep_indigo_field_sheet01.png",
+    "smoky_amber_cloud_sheet01": "res://assets/generated/backgrounds/smoky_amber_cloud_sheet01.png",
+    "icy_cyan_starfield_sheet01": "res://assets/generated/backgrounds/icy_cyan_starfield_sheet01.png"
+  }
+}

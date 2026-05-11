@@ -1,0 +1,2305 @@
+{
+  "schemaVersion": 1,
+  "assetRoots": {
+    "existingPlanetTextures": "res://assets/planets",
+    "generatedPlanetTextures": "res://assets/generated/planets",
+    "generatedStarTextures": "res://assets/generated/stars",
+    "generatedSpaceTextures": "res://assets/generated/backgrounds",
+    "generatedSpaceTiles": "res://assets/generated/background_tiles",
+    "systemOutput": "res://assets/generated/systems",
+    "generatedPlanetSurfaceTextures": "res://assets/generated/planet_surfaces"
+  },
+  "generation": {
+    "defaultSectorCount": 1,
+    "startingSector": {
+      "id": "orion",
+      "displayName": "Orion",
+      "generatedSystemCount": 2,
+      "generatedStarArchetypes": [
+        "orange_dwarf",
+        "blue_white_star"
+      ]
+    },
+    "sectorSystemCountRange": [
+      2,
+      5
+    ],
+    "defaultSeed": 3311337,
+    "planetCountRange": [
+      1,
+      10
+    ],
+    "maxPlanetDiameterToStarSizeRatio": 0.82,
+    "orbitRadiusRange": [
+      1180,
+      7800
+    ],
+    "orbitJitter": 0.22
+  },
+  "sectorNames": [
+    "Perseus",
+    "Cygnus",
+    "Lyra",
+    "Aquila",
+    "Pegasus",
+    "Draco",
+    "Vega Reach",
+    "Helios Rim"
+  ],
+  "nameParts": {
+    "prefixes": [
+      "Astra",
+      "Vela",
+      "Nara",
+      "Kora",
+      "Iria",
+      "Zeta",
+      "Mira",
+      "Orin",
+      "Seda",
+      "Talas",
+      "Rhea",
+      "Luma"
+    ],
+    "cores": [
+      "mar",
+      "len",
+      "tor",
+      "vyr",
+      "sha",
+      "kel",
+      "ron",
+      "vek",
+      "sol",
+      "mir",
+      "dar",
+      "nia"
+    ],
+    "suffixes": [
+      "a",
+      "on",
+      "is",
+      "ar",
+      "os",
+      "ea",
+      "um",
+      "ir",
+      "eth",
+      "yr",
+      "or",
+      "ai"
+    ]
+  },
+  "starTextureSets": [
+    {
+      "id": "solar_animated_default",
+      "frameDirectory": "res://assets/backgrounds/sun",
+      "framePrefix": "sun_",
+      "frameCount": 96,
+      "source": "existing"
+    },
+    {
+      "id": "generated_red_dwarf_sheet01",
+      "path": "res://assets/generated/stars/red_dwarf_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_orange_dwarf_sheet01",
+      "path": "res://assets/generated/stars/orange_dwarf_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_yellow_main_sequence_sheet01",
+      "path": "res://assets/generated/stars/yellow_main_sequence_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_blue_white_star_sheet01",
+      "path": "res://assets/generated/stars/blue_white_star_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_white_dwarf_sheet01",
+      "path": "res://assets/generated/stars/white_dwarf_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_red_giant_sheet01",
+      "path": "res://assets/generated/stars/red_giant_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_amber_giant_sheet01",
+      "path": "res://assets/generated/stars/amber_giant_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_violet_anomaly_sheet01",
+      "path": "res://assets/generated/stars/violet_anomaly_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_green_exotic_sheet01",
+      "path": "res://assets/generated/stars/green_exotic_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_neutron_like_sheet01",
+      "path": "res://assets/generated/stars/neutron_like_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_ember_remnant_sheet01",
+      "path": "res://assets/generated/stars/ember_remnant_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_cyan_compact_sheet01",
+      "path": "res://assets/generated/stars/cyan_compact_sheet01.png",
+      "source": "imagegen_sheet"
+    },
+    {
+      "id": "generated_highres_blue_white_star_01",
+      "path": "res://assets/generated/stars/blue_white_star_01.png",
+      "source": "imagegen_direct_highres",
+      "frameDirectory": "res://assets/generated/star_frames/blue_white_star_01",
+      "framePrefix": "sun_",
+      "frameCount": 96
+    },
+    {
+      "id": "generated_highres_orange_dwarf_01",
+      "path": "res://assets/generated/stars/orange_dwarf_01.png",
+      "source": "imagegen_direct_highres",
+      "frameDirectory": "res://assets/generated/star_frames/orange_dwarf_01",
+      "framePrefix": "sun_",
+      "frameCount": 96
+    },
+    {
+      "id": "generated_highres_amber_giant_01",
+      "path": "res://assets/generated/stars/amber_giant_01.png",
+      "frameDirectory": "res://assets/generated/star_frames/amber_giant_01",
+      "framePrefix": "sun_",
+      "frameCount": 96,
+      "source": "imagegen_direct_highres"
+    },
+    {
+      "id": "generated_highres_green_exotic_01",
+      "path": "res://assets/generated/stars/green_exotic_01.png",
+      "frameDirectory": "res://assets/generated/star_frames/green_exotic_01",
+      "framePrefix": "sun_",
+      "frameCount": 96,
+      "source": "imagegen_direct_highres"
+    },
+    {
+      "id": "generated_highres_neutron_like_01",
+      "path": "res://assets/generated/stars/neutron_like_01.png",
+      "frameDirectory": "res://assets/generated/star_frames/neutron_like_01",
+      "framePrefix": "sun_",
+      "frameCount": 96,
+      "source": "imagegen_direct_highres"
+    },
+    {
+      "id": "generated_highres_red_dwarf_01",
+      "path": "res://assets/generated/stars/red_dwarf_01.png",
+      "frameDirectory": "res://assets/generated/star_frames/red_dwarf_01",
+      "framePrefix": "sun_",
+      "frameCount": 96,
+      "source": "imagegen_direct_highres"
+    },
+    {
+      "id": "generated_highres_red_giant_01",
+      "path": "res://assets/generated/stars/red_giant_01.png",
+      "frameDirectory": "res://assets/generated/star_frames/red_giant_01",
+      "framePrefix": "sun_",
+      "frameCount": 96,
+      "source": "imagegen_direct_highres"
+    },
+    {
+      "id": "generated_highres_violet_anomaly_01",
+      "path": "res://assets/generated/stars/violet_anomaly_01.png",
+      "frameDirectory": "res://assets/generated/star_frames/violet_anomaly_01",
+      "framePrefix": "sun_",
+      "frameCount": 96,
+      "source": "imagegen_direct_highres"
+    },
+    {
+      "id": "generated_highres_white_dwarf_01",
+      "path": "res://assets/generated/stars/white_dwarf_01.png",
+      "frameDirectory": "res://assets/generated/star_frames/white_dwarf_01",
+      "framePrefix": "sun_",
+      "frameCount": 96,
+      "source": "imagegen_direct_highres"
+    },
+    {
+      "id": "generated_highres_yellow_main_sequence_01",
+      "path": "res://assets/generated/stars/yellow_main_sequence_01.png",
+      "frameDirectory": "res://assets/generated/star_frames/yellow_main_sequence_01",
+      "framePrefix": "sun_",
+      "frameCount": 96,
+      "source": "imagegen_direct_highres"
+    }
+  ],
+  "spaceBackdropTextureSets": [
+    {
+      "id": "existing_nebula_tile",
+      "path": "res://assets/backgrounds/space_nebula_tile.png",
+      "source": "existing"
+    },
+    {
+      "id": "generated_cold_blue_void_sheet01",
+      "path": "res://assets/generated/background_tiles/cold_blue_void_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_rust_dust_lane_sheet01",
+      "path": "res://assets/generated/background_tiles/rust_dust_lane_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_crimson_sparse_field_sheet01",
+      "path": "res://assets/generated/background_tiles/crimson_sparse_field_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_emerald_mist_sheet01",
+      "path": "res://assets/generated/background_tiles/emerald_mist_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_violet_rift_sheet01",
+      "path": "res://assets/generated/background_tiles/violet_rift_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_golden_cluster_sheet01",
+      "path": "res://assets/generated/background_tiles/golden_cluster_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_black_silent_reach_sheet01",
+      "path": "res://assets/generated/background_tiles/black_silent_reach_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_teal_nebula_shelf_sheet01",
+      "path": "res://assets/generated/background_tiles/teal_nebula_shelf_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_pale_star_nursery_sheet01",
+      "path": "res://assets/generated/background_tiles/pale_star_nursery_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_deep_indigo_field_sheet01",
+      "path": "res://assets/generated/background_tiles/deep_indigo_field_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_smoky_amber_cloud_sheet01",
+      "path": "res://assets/generated/background_tiles/smoky_amber_cloud_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_icy_cyan_starfield_sheet01",
+      "path": "res://assets/generated/background_tiles/icy_cyan_starfield_tile.png",
+      "source": "generated_tile_from_sol"
+    },
+    {
+      "id": "generated_highres_cold_blue_void_01",
+      "path": "res://assets/generated/background_tiles/cold_blue_void_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 36.315,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_smoky_amber_cloud_01",
+      "path": "res://assets/generated/background_tiles/smoky_amber_cloud_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 36.197,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_black_silent_reach_01",
+      "path": "res://assets/generated/background_tiles/black_silent_reach_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 23.067,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_crimson_sparse_field_01",
+      "path": "res://assets/generated/background_tiles/crimson_sparse_field_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 34.492,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_deep_indigo_field_01",
+      "path": "res://assets/generated/background_tiles/deep_indigo_field_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 30.473,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_emerald_mist_01",
+      "path": "res://assets/generated/background_tiles/emerald_mist_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 39.941,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_golden_cluster_01",
+      "path": "res://assets/generated/background_tiles/golden_cluster_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 38.666,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_icy_cyan_starfield_01",
+      "path": "res://assets/generated/background_tiles/icy_cyan_starfield_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 36.982,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_pale_star_nursery_01",
+      "path": "res://assets/generated/background_tiles/pale_star_nursery_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 37.841,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_rust_dust_lane_01",
+      "path": "res://assets/generated/background_tiles/rust_dust_lane_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 37.722,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_teal_nebula_shelf_01",
+      "path": "res://assets/generated/background_tiles/teal_nebula_shelf_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 37.17,
+      "validatedSeamDelta": 0.0
+    },
+    {
+      "id": "generated_highres_violet_rift_01",
+      "path": "res://assets/generated/background_tiles/violet_rift_01_tile.png",
+      "source": "imagegen_solstyle_highres_tile",
+      "quality": "direct_highres",
+      "validatedSharpness": 37.811,
+      "validatedSeamDelta": 0.0
+    }
+  ],
+  "spaceBackdropArchetypes": [
+    {
+      "id": "cold_blue_void",
+      "displayName": "Cold Blue Void",
+      "weight": 1.0,
+      "textureSet": "generated_highres_cold_blue_void_01",
+      "starWeights": {
+        "blue_white_star": 1.8,
+        "white_dwarf": 1.4,
+        "neutron_like": 1.6
+      },
+      "textureTint": "#82bfff",
+      "textureAlphaRange": [
+        0.34,
+        0.56
+      ],
+      "parallaxRange": [
+        0.055,
+        0.095
+      ],
+      "starParallaxRange": [
+        0.26,
+        0.38
+      ],
+      "starCountRange": [
+        840,
+        1180
+      ],
+      "nebulaBlobCountRange": [
+        18,
+        32
+      ],
+      "dustDensityRange": [
+        0.08,
+        0.18
+      ],
+      "nebulaPalette": [
+        "#102b45",
+        "#173c5a",
+        "#24315c",
+        "#0d3f4a"
+      ],
+      "imagePrompt": "A seamless deep-space background tile, cold blue nebula wisps, sparse white stars, dark negative space for gameplay readability, no planets, no text, no watermark."
+    },
+    {
+      "id": "rust_dust_lane",
+      "displayName": "Rust Dust Lane",
+      "weight": 0.95,
+      "textureSet": "generated_highres_rust_dust_lane_01",
+      "starWeights": {
+        "orange_dwarf": 1.55,
+        "red_giant": 1.4,
+        "amber_giant": 1.35
+      },
+      "textureTint": "#d98a55",
+      "textureAlphaRange": [
+        0.28,
+        0.48
+      ],
+      "parallaxRange": [
+        0.06,
+        0.105
+      ],
+      "starParallaxRange": [
+        0.28,
+        0.42
+      ],
+      "starCountRange": [
+        720,
+        1040
+      ],
+      "nebulaBlobCountRange": [
+        22,
+        38
+      ],
+      "dustDensityRange": [
+        0.2,
+        0.38
+      ],
+      "nebulaPalette": [
+        "#3e2116",
+        "#623018",
+        "#4a251e",
+        "#1c3540"
+      ],
+      "imagePrompt": "A seamless deep-space background tile, rusty orange interstellar dust lanes, muted teal shadows, medium star density, readable dark gaps, no planets, no text, no watermark."
+    },
+    {
+      "id": "crimson_sparse_field",
+      "displayName": "Crimson Sparse Field",
+      "weight": 0.85,
+      "textureSet": "generated_highres_crimson_sparse_field_01",
+      "starWeights": {
+        "red_dwarf": 1.9,
+        "red_giant": 1.55,
+        "violet_anomaly": 0.8
+      },
+      "textureTint": "#c44f58",
+      "textureAlphaRange": [
+        0.24,
+        0.42
+      ],
+      "parallaxRange": [
+        0.045,
+        0.085
+      ],
+      "starParallaxRange": [
+        0.25,
+        0.36
+      ],
+      "starCountRange": [
+        560,
+        880
+      ],
+      "nebulaBlobCountRange": [
+        12,
+        26
+      ],
+      "dustDensityRange": [
+        0.12,
+        0.28
+      ],
+      "nebulaPalette": [
+        "#3b1018",
+        "#58191f",
+        "#281524",
+        "#18313a"
+      ],
+      "imagePrompt": "A seamless deep-space background tile, dark crimson gas clouds, sparse warm stars, subtle smoky nebula patches, high gameplay readability, no planets, no text, no watermark."
+    },
+    {
+      "id": "emerald_mist",
+      "displayName": "Emerald Mist",
+      "weight": 0.52,
+      "textureSet": "generated_highres_emerald_mist_01",
+      "starWeights": {
+        "green_exotic": 2.4,
+        "violet_anomaly": 0.9,
+        "white_dwarf": 0.7
+      },
+      "textureTint": "#65d89b",
+      "textureAlphaRange": [
+        0.22,
+        0.4
+      ],
+      "parallaxRange": [
+        0.055,
+        0.095
+      ],
+      "starParallaxRange": [
+        0.28,
+        0.4
+      ],
+      "starCountRange": [
+        680,
+        980
+      ],
+      "nebulaBlobCountRange": [
+        20,
+        34
+      ],
+      "dustDensityRange": [
+        0.1,
+        0.24
+      ],
+      "nebulaPalette": [
+        "#0d3324",
+        "#164a31",
+        "#10333f",
+        "#2a2640"
+      ],
+      "imagePrompt": "A seamless deep-space background tile, faint emerald nebula mist, dark cyan voids, small pale stars, exotic but not noisy, no planets, no text, no watermark."
+    },
+    {
+      "id": "violet_rift",
+      "displayName": "Violet Rift",
+      "weight": 0.58,
+      "textureSet": "generated_highres_violet_rift_01",
+      "starWeights": {
+        "violet_anomaly": 2.2,
+        "blue_white_star": 1.0,
+        "neutron_like": 1.0
+      },
+      "textureTint": "#a878ff",
+      "textureAlphaRange": [
+        0.28,
+        0.5
+      ],
+      "parallaxRange": [
+        0.06,
+        0.11
+      ],
+      "starParallaxRange": [
+        0.3,
+        0.44
+      ],
+      "starCountRange": [
+        760,
+        1120
+      ],
+      "nebulaBlobCountRange": [
+        16,
+        30
+      ],
+      "dustDensityRange": [
+        0.14,
+        0.28
+      ],
+      "nebulaPalette": [
+        "#241446",
+        "#3a1d5c",
+        "#172c4a",
+        "#431c3d"
+      ],
+      "imagePrompt": "A seamless deep-space background tile, violet nebula rift and magenta filaments, cool blue shadows, scattered sharp stars, no planets, no text, no watermark."
+    },
+    {
+      "id": "golden_cluster",
+      "displayName": "Golden Cluster",
+      "weight": 0.72,
+      "textureSet": "generated_highres_golden_cluster_01",
+      "starWeights": {
+        "yellow_main_sequence": 1.6,
+        "amber_giant": 1.3,
+        "orange_dwarf": 1.0
+      },
+      "textureTint": "#ffd37a",
+      "textureAlphaRange": [
+        0.3,
+        0.5
+      ],
+      "parallaxRange": [
+        0.065,
+        0.12
+      ],
+      "starParallaxRange": [
+        0.34,
+        0.48
+      ],
+      "starCountRange": [
+        1050,
+        1450
+      ],
+      "nebulaBlobCountRange": [
+        18,
+        32
+      ],
+      "dustDensityRange": [
+        0.16,
+        0.3
+      ],
+      "nebulaPalette": [
+        "#443018",
+        "#5a431b",
+        "#173640",
+        "#2a2c35"
+      ],
+      "imagePrompt": "A seamless deep-space background tile, dense golden star cluster, faint amber nebula haze, dark readable center lanes, no planets, no text, no watermark."
+    },
+    {
+      "id": "black_silent_reach",
+      "displayName": "Black Silent Reach",
+      "weight": 0.68,
+      "textureSet": "generated_highres_black_silent_reach_01",
+      "starWeights": {
+        "white_dwarf": 1.4,
+        "neutron_like": 1.8,
+        "red_dwarf": 0.9
+      },
+      "textureTint": "#8ea4bd",
+      "textureAlphaRange": [
+        0.16,
+        0.32
+      ],
+      "parallaxRange": [
+        0.035,
+        0.07
+      ],
+      "starParallaxRange": [
+        0.22,
+        0.34
+      ],
+      "starCountRange": [
+        430,
+        720
+      ],
+      "nebulaBlobCountRange": [
+        6,
+        18
+      ],
+      "dustDensityRange": [
+        0.03,
+        0.12
+      ],
+      "nebulaPalette": [
+        "#0d121b",
+        "#111d28",
+        "#1a1728",
+        "#0c2630"
+      ],
+      "imagePrompt": "A seamless deep-space background tile, mostly black open space, very sparse distant stars, barely visible blue-gray dust, extremely readable for gameplay, no planets, no text, no watermark."
+    },
+    {
+      "id": "teal_nebula_shelf",
+      "displayName": "Teal Nebula Shelf",
+      "weight": 0.88,
+      "textureSet": "generated_highres_teal_nebula_shelf_01",
+      "starWeights": {
+        "yellow_main_sequence": 1.0,
+        "orange_dwarf": 1.1,
+        "blue_white_star": 1.1
+      },
+      "textureTint": "#5bd0d6",
+      "textureAlphaRange": [
+        0.26,
+        0.46
+      ],
+      "parallaxRange": [
+        0.055,
+        0.1
+      ],
+      "starParallaxRange": [
+        0.28,
+        0.42
+      ],
+      "starCountRange": [
+        820,
+        1200
+      ],
+      "nebulaBlobCountRange": [
+        24,
+        40
+      ],
+      "dustDensityRange": [
+        0.14,
+        0.3
+      ],
+      "nebulaPalette": [
+        "#123d42",
+        "#16545a",
+        "#203450",
+        "#30223a"
+      ],
+      "imagePrompt": "A seamless deep-space background tile, teal nebula shelf clouds, indigo depth, balanced star field, enough dark space for UI and ship silhouettes, no planets, no text, no watermark."
+    },
+    {
+      "id": "pale_star_nursery",
+      "displayName": "Pale Star Nursery",
+      "weight": 0.54,
+      "textureSet": "generated_highres_pale_star_nursery_01",
+      "starWeights": {
+        "white_dwarf": 1.5,
+        "blue_white_star": 1.2,
+        "yellow_main_sequence": 0.75
+      },
+      "textureTint": "#d9e8f0",
+      "textureAlphaRange": [
+        0.22,
+        0.38
+      ],
+      "parallaxRange": [
+        0.05,
+        0.09
+      ],
+      "starParallaxRange": [
+        0.26,
+        0.38
+      ],
+      "starCountRange": [
+        760,
+        1120
+      ],
+      "nebulaBlobCountRange": [
+        10,
+        22
+      ],
+      "dustDensityRange": [
+        0.08,
+        0.18
+      ],
+      "nebulaPalette": [
+        "#26323a",
+        "#3d4650",
+        "#172438",
+        "#203840"
+      ],
+      "imagePrompt": "A seamless pale white star nursery background tile, silver gas haze, readable dark lanes, no planets, no text, no watermark."
+    },
+    {
+      "id": "deep_indigo_field",
+      "displayName": "Deep Indigo Field",
+      "weight": 0.62,
+      "textureSet": "generated_highres_deep_indigo_field_01",
+      "starWeights": {
+        "violet_anomaly": 1.5,
+        "blue_white_star": 1.1,
+        "neutron_like": 1.2
+      },
+      "textureTint": "#746aff",
+      "textureAlphaRange": [
+        0.18,
+        0.34
+      ],
+      "parallaxRange": [
+        0.04,
+        0.08
+      ],
+      "starParallaxRange": [
+        0.24,
+        0.36
+      ],
+      "starCountRange": [
+        620,
+        980
+      ],
+      "nebulaBlobCountRange": [
+        8,
+        18
+      ],
+      "dustDensityRange": [
+        0.06,
+        0.16
+      ],
+      "nebulaPalette": [
+        "#171844",
+        "#1d225c",
+        "#132942",
+        "#27183d"
+      ],
+      "imagePrompt": "A seamless deep indigo open starfield tile, faint violet dust, sparse readable stars, no planets, no text, no watermark."
+    },
+    {
+      "id": "smoky_amber_cloud",
+      "displayName": "Smoky Amber Cloud",
+      "weight": 0.64,
+      "textureSet": "generated_highres_smoky_amber_cloud_01",
+      "starWeights": {
+        "orange_dwarf": 1.35,
+        "amber_giant": 1.45,
+        "red_giant": 1.25
+      },
+      "textureTint": "#d08b42",
+      "textureAlphaRange": [
+        0.24,
+        0.42
+      ],
+      "parallaxRange": [
+        0.055,
+        0.095
+      ],
+      "starParallaxRange": [
+        0.28,
+        0.42
+      ],
+      "starCountRange": [
+        680,
+        1040
+      ],
+      "nebulaBlobCountRange": [
+        18,
+        34
+      ],
+      "dustDensityRange": [
+        0.18,
+        0.34
+      ],
+      "nebulaPalette": [
+        "#422516",
+        "#5c3518",
+        "#19333a",
+        "#2a2218"
+      ],
+      "imagePrompt": "A seamless smoky amber molecular cloud background tile, warm dust with dark teal shadows, no planets, no text, no watermark."
+    },
+    {
+      "id": "icy_cyan_starfield",
+      "displayName": "Icy Cyan Starfield",
+      "weight": 0.58,
+      "textureSet": "generated_highres_icy_cyan_starfield_01",
+      "starWeights": {
+        "blue_white_star": 1.45,
+        "white_dwarf": 1.35,
+        "neutron_like": 1.25
+      },
+      "textureTint": "#85e6ff",
+      "textureAlphaRange": [
+        0.22,
+        0.38
+      ],
+      "parallaxRange": [
+        0.05,
+        0.09
+      ],
+      "starParallaxRange": [
+        0.28,
+        0.4
+      ],
+      "starCountRange": [
+        740,
+        1120
+      ],
+      "nebulaBlobCountRange": [
+        14,
+        28
+      ],
+      "dustDensityRange": [
+        0.08,
+        0.2
+      ],
+      "nebulaPalette": [
+        "#123845",
+        "#174d5b",
+        "#192f4a",
+        "#253049"
+      ],
+      "imagePrompt": "A seamless icy cyan starfield background tile, cool nebula haze, crisp stars, readable dark gaps, no planets, no text, no watermark."
+    }
+  ],
+  "starArchetypes": [
+    {
+      "id": "red_dwarf",
+      "displayName": "Red Dwarf",
+      "weight": 1.25,
+      "textureSet": "generated_red_dwarf_sheet01",
+      "worldSizeRange": [
+        760,
+        980
+      ],
+      "diskTint": "#ff6048",
+      "coronaColor": "#ff2e22",
+      "coronaIntensityRange": [
+        0.52,
+        0.82
+      ],
+      "animationSpeedRange": [
+        0.62,
+        0.95
+      ],
+      "planetCountRange": [
+        1,
+        6
+      ],
+      "orbitRadiusRange": [
+        1050,
+        5200
+      ],
+      "habitableOrbitRange": [
+        1550,
+        2950
+      ],
+      "nebulaPalette": [
+        "#321216",
+        "#461b1d",
+        "#18313a",
+        "#442612"
+      ],
+      "imagePrompt": "A compact red dwarf star texture, fiery crimson and ember orange plasma, visible turbulent surface cells, soft corona on black space, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_red_dwarf_01",
+          "weight": 3.0
+        }
+      ]
+    },
+    {
+      "id": "orange_dwarf",
+      "displayName": "Orange Dwarf",
+      "weight": 1.2,
+      "textureSet": "generated_orange_dwarf_sheet01",
+      "worldSizeRange": [
+        900,
+        1160
+      ],
+      "diskTint": "#ff9b45",
+      "coronaColor": "#ff6a22",
+      "coronaIntensityRange": [
+        0.58,
+        0.9
+      ],
+      "animationSpeedRange": [
+        0.72,
+        1.05
+      ],
+      "planetCountRange": [
+        2,
+        8
+      ],
+      "orbitRadiusRange": [
+        1180,
+        6800
+      ],
+      "habitableOrbitRange": [
+        2050,
+        3850
+      ],
+      "nebulaPalette": [
+        "#302019",
+        "#4a2a16",
+        "#163640",
+        "#123229"
+      ],
+      "imagePrompt": "An orange dwarf star texture, warm amber plasma, bright granular surface, controlled corona, black transparent-looking space around the disk, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_orange_dwarf_01",
+          "weight": 3.0
+        }
+      ]
+    },
+    {
+      "id": "yellow_main_sequence",
+      "displayName": "Yellow Main Sequence",
+      "weight": 1.0,
+      "textureSet": "generated_yellow_main_sequence_sheet01",
+      "worldSizeRange": [
+        1120,
+        1380
+      ],
+      "diskTint": "#ffd25a",
+      "coronaColor": "#ff8a2a",
+      "coronaIntensityRange": [
+        0.68,
+        1.0
+      ],
+      "animationSpeedRange": [
+        0.86,
+        1.18
+      ],
+      "planetCountRange": [
+        3,
+        10
+      ],
+      "orbitRadiusRange": [
+        1250,
+        7800
+      ],
+      "habitableOrbitRange": [
+        2450,
+        4450
+      ],
+      "nebulaPalette": [
+        "#262436",
+        "#173b46",
+        "#402018",
+        "#172f2b"
+      ],
+      "imagePrompt": "A yellow main-sequence star texture, golden solar plasma with orange filaments, readable circular disk, luminous but not overexposed, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_yellow_main_sequence_01",
+          "weight": 3.0
+        }
+      ]
+    },
+    {
+      "id": "blue_white_star",
+      "displayName": "Blue-White Star",
+      "weight": 0.65,
+      "textureSet": "generated_blue_white_star_sheet01",
+      "worldSizeRange": [
+        1240,
+        1580
+      ],
+      "diskTint": "#d8f2ff",
+      "coronaColor": "#7ec8ff",
+      "coronaIntensityRange": [
+        0.75,
+        1.12
+      ],
+      "animationSpeedRange": [
+        1.0,
+        1.36
+      ],
+      "planetCountRange": [
+        2,
+        8
+      ],
+      "orbitRadiusRange": [
+        1500,
+        8200
+      ],
+      "habitableOrbitRange": [
+        3450,
+        6100
+      ],
+      "nebulaPalette": [
+        "#132d47",
+        "#1f2453",
+        "#0f3f4a",
+        "#2a2342"
+      ],
+      "imagePrompt": "A blue-white hot star texture, pale blue and white plasma, intense clean rim glow, cold luminous corona, black space background, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_blue_white_star_01",
+          "weight": 3.0
+        }
+      ]
+    },
+    {
+      "id": "white_dwarf",
+      "displayName": "White Dwarf",
+      "weight": 0.5,
+      "textureSet": "generated_white_dwarf_sheet01",
+      "worldSizeRange": [
+        520,
+        740
+      ],
+      "diskTint": "#f3fbff",
+      "coronaColor": "#b9e8ff",
+      "coronaIntensityRange": [
+        0.46,
+        0.72
+      ],
+      "animationSpeedRange": [
+        0.4,
+        0.78
+      ],
+      "planetCountRange": [
+        1,
+        6
+      ],
+      "orbitRadiusRange": [
+        950,
+        5000
+      ],
+      "habitableOrbitRange": [
+        1250,
+        2450
+      ],
+      "nebulaPalette": [
+        "#17202d",
+        "#1d2e38",
+        "#241d34",
+        "#10313a"
+      ],
+      "imagePrompt": "A small white dwarf star texture, bright pearly white core, faint blue corona, compact disk with subtle surface motion, black space background, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_white_dwarf_01",
+          "weight": 3.0
+        }
+      ]
+    },
+    {
+      "id": "red_giant",
+      "displayName": "Red Giant",
+      "weight": 0.38,
+      "textureSet": "generated_red_giant_sheet01",
+      "worldSizeRange": [
+        1540,
+        2100
+      ],
+      "diskTint": "#ff714a",
+      "coronaColor": "#d93d22",
+      "coronaIntensityRange": [
+        0.88,
+        1.26
+      ],
+      "animationSpeedRange": [
+        0.34,
+        0.62
+      ],
+      "planetCountRange": [
+        1,
+        7
+      ],
+      "orbitRadiusRange": [
+        2100,
+        9000
+      ],
+      "habitableOrbitRange": [
+        5000,
+        7600
+      ],
+      "nebulaPalette": [
+        "#411815",
+        "#542712",
+        "#321725",
+        "#2e2316"
+      ],
+      "imagePrompt": "A red giant star texture, huge swollen red-orange plasma disk, slow broad convection cells, smoky corona, black space background, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_red_giant_01",
+          "weight": 3.0
+        }
+      ]
+    },
+    {
+      "id": "amber_giant",
+      "displayName": "Amber Giant",
+      "weight": 0.42,
+      "textureSet": "generated_amber_giant_sheet01",
+      "worldSizeRange": [
+        1420,
+        1840
+      ],
+      "diskTint": "#ffc15f",
+      "coronaColor": "#ff7a24",
+      "coronaIntensityRange": [
+        0.82,
+        1.18
+      ],
+      "animationSpeedRange": [
+        0.44,
+        0.76
+      ],
+      "planetCountRange": [
+        2,
+        9
+      ],
+      "orbitRadiusRange": [
+        1850,
+        8600
+      ],
+      "habitableOrbitRange": [
+        4300,
+        6900
+      ],
+      "nebulaPalette": [
+        "#3d2717",
+        "#4d3514",
+        "#183746",
+        "#252c32"
+      ],
+      "imagePrompt": "An amber giant star texture, golden orange swollen stellar surface, layered fiery clouds, broad luminous corona, black space background, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_amber_giant_01",
+          "weight": 3.0
+        }
+      ]
+    },
+    {
+      "id": "violet_anomaly",
+      "displayName": "Violet Anomaly",
+      "weight": 0.18,
+      "textureSet": "generated_violet_anomaly_sheet01",
+      "worldSizeRange": [
+        940,
+        1320
+      ],
+      "diskTint": "#ba78ff",
+      "coronaColor": "#7b3dff",
+      "coronaIntensityRange": [
+        0.7,
+        1.1
+      ],
+      "animationSpeedRange": [
+        0.9,
+        1.5
+      ],
+      "planetCountRange": [
+        1,
+        7
+      ],
+      "orbitRadiusRange": [
+        1200,
+        7200
+      ],
+      "habitableOrbitRange": [
+        2600,
+        4700
+      ],
+      "nebulaPalette": [
+        "#251740",
+        "#351a4f",
+        "#143743",
+        "#301c36"
+      ],
+      "imagePrompt": "A strange violet anomaly star texture, purple plasma, magenta filaments, supernatural but still astronomical, circular disk, black space background, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_violet_anomaly_01",
+          "weight": 3.0
+        }
+      ]
+    },
+    {
+      "id": "green_exotic",
+      "displayName": "Green Exotic",
+      "weight": 0.12,
+      "textureSet": "generated_green_exotic_sheet01",
+      "worldSizeRange": [
+        820,
+        1180
+      ],
+      "diskTint": "#8dff9e",
+      "coronaColor": "#31d878",
+      "coronaIntensityRange": [
+        0.62,
+        0.96
+      ],
+      "animationSpeedRange": [
+        0.86,
+        1.32
+      ],
+      "planetCountRange": [
+        1,
+        6
+      ],
+      "orbitRadiusRange": [
+        1100,
+        6200
+      ],
+      "habitableOrbitRange": [
+        2300,
+        3950
+      ],
+      "nebulaPalette": [
+        "#102e24",
+        "#173d2b",
+        "#183044",
+        "#2b2538"
+      ],
+      "imagePrompt": "An exotic green star texture, emerald plasma and pale mint highlights, sci-fi stellar disk, controlled corona, black space background, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_green_exotic_01",
+          "weight": 3.0
+        }
+      ]
+    },
+    {
+      "id": "neutron_like",
+      "displayName": "Neutron-Like Remnant",
+      "weight": 0.1,
+      "textureSet": "generated_neutron_like_sheet01",
+      "worldSizeRange": [
+        360,
+        560
+      ],
+      "diskTint": "#bfe8ff",
+      "coronaColor": "#5aa7ff",
+      "coronaIntensityRange": [
+        0.9,
+        1.45
+      ],
+      "animationSpeedRange": [
+        1.25,
+        2.0
+      ],
+      "planetCountRange": [
+        1,
+        3
+      ],
+      "orbitRadiusRange": [
+        1500,
+        5600
+      ],
+      "habitableOrbitRange": [
+        2800,
+        4200
+      ],
+      "nebulaPalette": [
+        "#101828",
+        "#152844",
+        "#24153a",
+        "#0c3140"
+      ],
+      "imagePrompt": "A compact neutron-like stellar remnant texture, tiny blue-white blazing core with energetic halo, high contrast, black space background, game asset, no text, no watermark.",
+      "textureSets": [
+        {
+          "id": "generated_highres_neutron_like_01",
+          "weight": 3.0
+        }
+      ]
+    }
+  ],
+  "ringProfiles": [
+    {
+      "id": "broad_amber",
+      "innerRadiusFactor": 0.55,
+      "outerRadiusFactor": 0.98,
+      "flattening": 0.3,
+      "rotation": -0.24,
+      "alphaRange": [
+        0.68,
+        0.88
+      ],
+      "color": "#c7ad78",
+      "accentColor": "#fff0b4"
+    },
+    {
+      "id": "thin_ice",
+      "innerRadiusFactor": 0.62,
+      "outerRadiusFactor": 0.9,
+      "flattening": 0.22,
+      "rotation": -0.32,
+      "alphaRange": [
+        0.42,
+        0.66
+      ],
+      "color": "#8fb7c8",
+      "accentColor": "#e6fbff"
+    },
+    {
+      "id": "dark_dust",
+      "innerRadiusFactor": 0.58,
+      "outerRadiusFactor": 1.02,
+      "flattening": 0.27,
+      "rotation": -0.18,
+      "alphaRange": [
+        0.38,
+        0.62
+      ],
+      "color": "#7d6352",
+      "accentColor": "#d3a474"
+    }
+  ],
+  "planetArchetypes": [
+    {
+      "id": "scorched_rock",
+      "displayName": "Scorched Rock",
+      "weight": 1.1,
+      "zoneWeights": {
+        "inner": 2.9,
+        "habitable": 0.45,
+        "outer": 0.05
+      },
+      "bodyDiameterRange": [
+        145,
+        270
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/mercury_spin_map.png",
+          "weight": 1.0,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/mars_spin_map.png",
+          "weight": 0.35,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/scorched_rock_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/scorched_rock_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 237.909,
+          "validatedSeamDelta": 8e-05
+        }
+      ],
+      "mapColors": [
+        "#b49676",
+        "#cf7350",
+        "#8d7a68"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#ff8b55",
+          "#d9b38a",
+          "#ff5a36"
+        ],
+        "atmosphereStrengthRange": [
+          0.02,
+          0.09
+        ],
+        "rotationSpeedRange": [
+          0.008,
+          0.024
+        ],
+        "flowStrengthRange": [
+          0.0,
+          0.002
+        ],
+        "contrastRange": [
+          1.04,
+          1.18
+        ],
+        "saturationRange": [
+          0.76,
+          1.0
+        ],
+        "glowStrengthRange": [
+          0.32,
+          0.58
+        ],
+        "ringChance": 0.0
+      },
+      "imagePrompt": "A seamless equirectangular scorched rocky planet surface texture, charred basalt, copper dust, cratered terrain, no clouds, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "barren_rock",
+      "displayName": "Barren Rock",
+      "weight": 1.2,
+      "zoneWeights": {
+        "inner": 1.35,
+        "habitable": 0.95,
+        "outer": 0.55
+      },
+      "bodyDiameterRange": [
+        170,
+        340
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/mercury_spin_map.png",
+          "weight": 0.9,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/mars_spin_map.png",
+          "weight": 0.75,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/barren_rock_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/barren_rock_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 231.089,
+          "validatedSeamDelta": 5e-05
+        }
+      ],
+      "mapColors": [
+        "#9a8c78",
+        "#b48d68",
+        "#766f68"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#c7b090",
+          "#b9a694",
+          "#e0c0a0"
+        ],
+        "atmosphereStrengthRange": [
+          0.03,
+          0.12
+        ],
+        "rotationSpeedRange": [
+          0.006,
+          0.02
+        ],
+        "flowStrengthRange": [
+          0.0,
+          0.002
+        ],
+        "contrastRange": [
+          0.96,
+          1.12
+        ],
+        "saturationRange": [
+          0.62,
+          0.92
+        ],
+        "glowStrengthRange": [
+          0.34,
+          0.66
+        ],
+        "ringChance": 0.02
+      },
+      "imagePrompt": "A seamless equirectangular barren rocky planet surface texture, gray-brown craters, dry regolith, subtle ridges and basins, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "desert",
+      "displayName": "Desert World",
+      "weight": 1.05,
+      "zoneWeights": {
+        "inner": 1.5,
+        "habitable": 1.25,
+        "outer": 0.15
+      },
+      "bodyDiameterRange": [
+        220,
+        430
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/venus_spin_map.png",
+          "weight": 0.9,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/mars_spin_map.png",
+          "weight": 0.65,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/desert_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/desert_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 124.724,
+          "validatedSeamDelta": 4e-05
+        }
+      ],
+      "mapColors": [
+        "#e4a756",
+        "#d48a42",
+        "#caa26a"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#ffbd63",
+          "#ffc27c",
+          "#f19148"
+        ],
+        "atmosphereStrengthRange": [
+          0.13,
+          0.28
+        ],
+        "rotationSpeedRange": [
+          0.004,
+          0.016
+        ],
+        "flowStrengthRange": [
+          0.001,
+          0.004
+        ],
+        "contrastRange": [
+          0.92,
+          1.08
+        ],
+        "saturationRange": [
+          0.86,
+          1.12
+        ],
+        "glowStrengthRange": [
+          0.66,
+          0.98
+        ],
+        "ringChance": 0.01
+      },
+      "imagePrompt": "A seamless equirectangular desert planet surface texture, ochre dunes, salt flats, dry canyons, soft dusty cloud streaks, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "volcanic",
+      "displayName": "Volcanic World",
+      "weight": 0.72,
+      "zoneWeights": {
+        "inner": 1.85,
+        "habitable": 0.65,
+        "outer": 0.08
+      },
+      "bodyDiameterRange": [
+        200,
+        390
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/mars_spin_map.png",
+          "weight": 1.0,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/venus_spin_map.png",
+          "weight": 0.45,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/volcanic_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/volcanic_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 207.174,
+          "validatedSeamDelta": 0.00011
+        }
+      ],
+      "mapColors": [
+        "#ff572e",
+        "#bd3a26",
+        "#f08435"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#ff4a24",
+          "#ff7a35",
+          "#ca3222"
+        ],
+        "atmosphereStrengthRange": [
+          0.08,
+          0.2
+        ],
+        "rotationSpeedRange": [
+          0.008,
+          0.022
+        ],
+        "flowStrengthRange": [
+          0.002,
+          0.006
+        ],
+        "contrastRange": [
+          1.08,
+          1.28
+        ],
+        "saturationRange": [
+          0.98,
+          1.24
+        ],
+        "glowStrengthRange": [
+          0.76,
+          1.12
+        ],
+        "ringChance": 0.0
+      },
+      "imagePrompt": "A seamless equirectangular volcanic planet surface texture, black crust, glowing lava fissures, ash plains, sulfur stains, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "ocean",
+      "displayName": "Ocean World",
+      "weight": 0.78,
+      "zoneWeights": {
+        "inner": 0.12,
+        "habitable": 1.75,
+        "outer": 0.22
+      },
+      "bodyDiameterRange": [
+        260,
+        480
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/earth_surface_map.png",
+          "weight": 1.0,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/neptune_spin_map.png",
+          "weight": 0.24,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/ocean_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/ocean_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 192.336,
+          "validatedSeamDelta": 3e-05
+        }
+      ],
+      "mapColors": [
+        "#2697e8",
+        "#36c3d6",
+        "#1d78c9"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#52c9ff",
+          "#68e3ff",
+          "#6cbcff"
+        ],
+        "atmosphereStrengthRange": [
+          0.18,
+          0.32
+        ],
+        "rotationSpeedRange": [
+          0.008,
+          0.02
+        ],
+        "flowStrengthRange": [
+          0.002,
+          0.006
+        ],
+        "contrastRange": [
+          0.92,
+          1.08
+        ],
+        "saturationRange": [
+          1.0,
+          1.2
+        ],
+        "glowStrengthRange": [
+          0.82,
+          1.18
+        ],
+        "ringChance": 0.0
+      },
+      "imagePrompt": "A seamless equirectangular ocean planet surface texture, deep blue oceans, scattered white storm systems, small island chains, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "earthlike",
+      "displayName": "Earthlike World",
+      "weight": 0.62,
+      "zoneWeights": {
+        "inner": 0.05,
+        "habitable": 1.35,
+        "outer": 0.05
+      },
+      "bodyDiameterRange": [
+        250,
+        460
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/earth_surface_map.png",
+          "weight": 1.0,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/earthlike_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/earthlike_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 196.23,
+          "validatedSeamDelta": 3e-05
+        }
+      ],
+      "mapColors": [
+        "#42a5ff",
+        "#43c47a",
+        "#6ec6ff"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#4fb9ff",
+          "#7ee5ff",
+          "#6aaeff"
+        ],
+        "atmosphereStrengthRange": [
+          0.19,
+          0.34
+        ],
+        "rotationSpeedRange": [
+          0.008,
+          0.018
+        ],
+        "flowStrengthRange": [
+          0.001,
+          0.004
+        ],
+        "contrastRange": [
+          0.94,
+          1.06
+        ],
+        "saturationRange": [
+          0.96,
+          1.16
+        ],
+        "glowStrengthRange": [
+          0.92,
+          1.24
+        ],
+        "ringChance": 0.0
+      },
+      "imagePrompt": "A seamless equirectangular earthlike planet surface texture, blue oceans, green and tan continents, natural cloud bands, no city lights, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "ice",
+      "displayName": "Ice World",
+      "weight": 0.95,
+      "zoneWeights": {
+        "inner": 0.03,
+        "habitable": 0.42,
+        "outer": 2.1
+      },
+      "bodyDiameterRange": [
+        200,
+        420
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/uranus_spin_map.png",
+          "weight": 0.9,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/neptune_spin_map.png",
+          "weight": 0.55,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/ice_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/ice_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 262.852,
+          "validatedSeamDelta": 8e-05
+        }
+      ],
+      "mapColors": [
+        "#9de9ff",
+        "#c9f5ff",
+        "#7dc8e8"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#a9efff",
+          "#d8fbff",
+          "#83cfff"
+        ],
+        "atmosphereStrengthRange": [
+          0.12,
+          0.26
+        ],
+        "rotationSpeedRange": [
+          0.006,
+          0.018
+        ],
+        "flowStrengthRange": [
+          0.001,
+          0.004
+        ],
+        "contrastRange": [
+          0.9,
+          1.08
+        ],
+        "saturationRange": [
+          0.72,
+          1.02
+        ],
+        "glowStrengthRange": [
+          0.72,
+          1.04
+        ],
+        "ringChance": 0.08
+      },
+      "imagePrompt": "A seamless equirectangular ice planet surface texture, pale cyan glaciers, cracked ice plains, frozen ridges, thin mist bands, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "toxic",
+      "displayName": "Toxic World",
+      "weight": 0.58,
+      "zoneWeights": {
+        "inner": 0.62,
+        "habitable": 0.82,
+        "outer": 0.32
+      },
+      "bodyDiameterRange": [
+        220,
+        440
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/venus_spin_map.png",
+          "weight": 0.9,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/uranus_spin_map.png",
+          "weight": 0.25,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/toxic_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/toxic_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 41.135,
+          "validatedSeamDelta": 1e-05
+        }
+      ],
+      "mapColors": [
+        "#95e052",
+        "#c7d846",
+        "#63c978"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#a4ff58",
+          "#d0f05a",
+          "#72e48c"
+        ],
+        "atmosphereStrengthRange": [
+          0.2,
+          0.38
+        ],
+        "rotationSpeedRange": [
+          0.004,
+          0.016
+        ],
+        "flowStrengthRange": [
+          0.003,
+          0.008
+        ],
+        "contrastRange": [
+          0.96,
+          1.16
+        ],
+        "saturationRange": [
+          1.05,
+          1.34
+        ],
+        "glowStrengthRange": [
+          0.95,
+          1.32
+        ],
+        "ringChance": 0.02
+      },
+      "imagePrompt": "A seamless equirectangular toxic planet surface texture, green-yellow poisonous cloud layers, acid seas hinted below, dense atmosphere, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "warm_gas_giant",
+      "displayName": "Warm Gas Giant",
+      "weight": 0.82,
+      "zoneWeights": {
+        "inner": 0.12,
+        "habitable": 0.7,
+        "outer": 1.25
+      },
+      "bodyDiameterRange": [
+        620,
+        1050
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/jupiter_spin_map.png",
+          "weight": 1.0,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/saturn_spin_map.png",
+          "weight": 0.65,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/warm_gas_giant_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/warm_gas_giant_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 30.347,
+          "validatedSeamDelta": 0.0
+        }
+      ],
+      "mapColors": [
+        "#f0bd78",
+        "#e8a464",
+        "#d58e54"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#ffc170",
+          "#ff9d52",
+          "#f5d298"
+        ],
+        "atmosphereStrengthRange": [
+          0.1,
+          0.22
+        ],
+        "rotationSpeedRange": [
+          0.022,
+          0.044
+        ],
+        "flowStrengthRange": [
+          0.004,
+          0.008
+        ],
+        "contrastRange": [
+          0.98,
+          1.12
+        ],
+        "saturationRange": [
+          0.94,
+          1.12
+        ],
+        "glowStrengthRange": [
+          0.62,
+          0.9
+        ],
+        "ringChance": 0.22,
+        "ringProfileWeights": {
+          "broad_amber": 1.0,
+          "dark_dust": 0.45
+        }
+      },
+      "imagePrompt": "A seamless equirectangular warm gas giant texture, cream and amber cloud belts, oval storms, layered atmospheric bands, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "cold_gas_giant",
+      "displayName": "Cold Gas Giant",
+      "weight": 0.8,
+      "zoneWeights": {
+        "inner": 0.02,
+        "habitable": 0.25,
+        "outer": 1.75
+      },
+      "bodyDiameterRange": [
+        540,
+        980
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/neptune_spin_map.png",
+          "weight": 1.0,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/uranus_spin_map.png",
+          "weight": 0.9,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/cold_gas_giant_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/cold_gas_giant_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 38.111,
+          "validatedSeamDelta": 0.0
+        }
+      ],
+      "mapColors": [
+        "#4188ff",
+        "#62d5e8",
+        "#6fa4ff"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#4f9aff",
+          "#72e8ff",
+          "#a2d8ff"
+        ],
+        "atmosphereStrengthRange": [
+          0.16,
+          0.3
+        ],
+        "rotationSpeedRange": [
+          0.018,
+          0.038
+        ],
+        "flowStrengthRange": [
+          0.003,
+          0.007
+        ],
+        "contrastRange": [
+          0.92,
+          1.12
+        ],
+        "saturationRange": [
+          0.9,
+          1.2
+        ],
+        "glowStrengthRange": [
+          0.74,
+          1.04
+        ],
+        "ringChance": 0.16,
+        "ringProfileWeights": {
+          "thin_ice": 1.0,
+          "broad_amber": 0.18
+        }
+      },
+      "imagePrompt": "A seamless equirectangular cold gas giant texture, blue and cyan cloud bands, white storms, smooth atmospheric gradients, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "ringed_giant",
+      "displayName": "Ringed Giant",
+      "weight": 0.5,
+      "zoneWeights": {
+        "inner": 0.01,
+        "habitable": 0.22,
+        "outer": 1.55
+      },
+      "bodyDiameterRange": [
+        560,
+        980
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/saturn_spin_map.png",
+          "weight": 1.0,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/jupiter_spin_map.png",
+          "weight": 0.35,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/ringed_giant_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/ringed_giant_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 38.306,
+          "validatedSeamDelta": 0.0
+        }
+      ],
+      "mapColors": [
+        "#efcf84",
+        "#c9b7a0",
+        "#b5d8e4"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#ffe0a0",
+          "#d8ecff",
+          "#f0c78c"
+        ],
+        "atmosphereStrengthRange": [
+          0.1,
+          0.24
+        ],
+        "rotationSpeedRange": [
+          0.018,
+          0.036
+        ],
+        "flowStrengthRange": [
+          0.003,
+          0.007
+        ],
+        "contrastRange": [
+          0.94,
+          1.08
+        ],
+        "saturationRange": [
+          0.78,
+          1.05
+        ],
+        "glowStrengthRange": [
+          0.62,
+          0.92
+        ],
+        "ringChance": 1.0,
+        "ringProfileWeights": {
+          "broad_amber": 1.0,
+          "thin_ice": 0.65,
+          "dark_dust": 0.35
+        }
+      },
+      "imagePrompt": "A seamless equirectangular ringed gas giant surface texture, pale beige and gold cloud bands, subtle storm knots, designed for separate ring overlay, no labels, no watermark, game-ready texture."
+    },
+    {
+      "id": "shattered_world",
+      "displayName": "Shattered World",
+      "weight": 0.18,
+      "zoneWeights": {
+        "inner": 0.42,
+        "habitable": 0.28,
+        "outer": 0.18
+      },
+      "bodyDiameterRange": [
+        180,
+        360
+      ],
+      "surfaceMaps": [
+        {
+          "path": "res://assets/planets/mercury_spin_map.png",
+          "weight": 0.7,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/planets/mars_spin_map.png",
+          "weight": 0.7,
+          "source": "existing"
+        },
+        {
+          "path": "res://assets/generated/planet_surfaces/shattered_world_01.png",
+          "weight": 3.0,
+          "source": "processed_planet_surface",
+          "rawPath": "res://assets/generated/planet_sources_4k/shattered_world_01.png",
+          "quality": "direct_highres",
+          "validatedSharpness": 146.305,
+          "validatedSeamDelta": 0.0
+        }
+      ],
+      "mapColors": [
+        "#9b7568",
+        "#c26542",
+        "#77686c"
+      ],
+      "visual": {
+        "atmosphereColors": [
+          "#d88864",
+          "#a68c80",
+          "#ff7248"
+        ],
+        "atmosphereStrengthRange": [
+          0.04,
+          0.14
+        ],
+        "rotationSpeedRange": [
+          0.012,
+          0.032
+        ],
+        "flowStrengthRange": [
+          0.0,
+          0.002
+        ],
+        "contrastRange": [
+          1.1,
+          1.32
+        ],
+        "saturationRange": [
+          0.72,
+          1.08
+        ],
+        "glowStrengthRange": [
+          0.42,
+          0.72
+        ],
+        "ringChance": 0.35,
+        "ringProfileWeights": {
+          "dark_dust": 1.0
+        }
+      },
+      "imagePrompt": "A seamless equirectangular shattered rocky planet surface texture, cracked crust, impact scars, dark chasms, reddish exposed layers, no labels, no watermark, game-ready texture."
+    }
+  ]
+}

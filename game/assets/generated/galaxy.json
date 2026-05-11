@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "seed": 3311337,
+  "startingSectorId": "orion",
+  "sectorCount": 1,
+  "systemCount": 2,
+  "generatedSystemCount": 1,
+  "sectors": [
+    {
+      "id": "orion",
+      "name": "Orion",
+      "isStartingSector": true,
+      "systemCount": 2,
+      "systems": [
+        {
+          "id": "sol",
+          "name": "Sol",
+          "source": "preset",
+          "sectorId": "orion",
+          "sectorName": "Orion",
+          "seed": 0,
+          "starArchetype": "yellow_main_sequence",
+          "backgroundArchetype": "sol_nebula",
+          "planetCount": 8,
+          "file": ""
+        },
+        {
+          "id": "orion_0001",
+          "name": "Planet Showcase",
+          "source": "generated",
+          "sectorId": "orion",
+          "sectorName": "Orion",
+          "seed": 3311337,
+          "starArchetype": "yellow_main_sequence",
+          "backgroundArchetype": "black_silent_reach",
+          "planetCount": 12,
+          "file": "res://assets/generated/systems/orion_0001.json"
+        }
+      ]
+    }
+  ]
+}

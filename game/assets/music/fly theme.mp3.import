@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://c3na5t16m2qrf"
+path="res://.godot/imported/fly theme.mp3-22794f6fd3bc90766113a6a3f034afb4.mp3str"
+
+[deps]
+
+source_file="res://assets/music/fly theme.mp3"
+dest_files=["res://.godot/imported/fly theme.mp3-22794f6fd3bc90766113a6a3f034afb4.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

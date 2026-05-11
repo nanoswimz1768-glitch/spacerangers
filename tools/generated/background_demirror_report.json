@@ -1,0 +1,68 @@
+{
+  "backupDir": "tools\\generated\\backups\\background_tiles_20260510_pre_preserve_art_asym_v7",
+  "targetSet": "active",
+  "strength": 0.92,
+  "brightness": 1.0,
+  "vibrance": 1.0,
+  "contrast": 1.0,
+  "clarity": 0.0,
+  "assets": [
+    {
+      "path": "game\\assets\\backgrounds\\space_nebula_tile.png",
+      "before": {
+        "mirrorHorizontal": 0.20809,
+        "mirrorVertical": 0.58393,
+        "mirrorMax": 0.58393,
+        "seamHorizontal": 0.000312,
+        "seamVertical": 0.0005,
+        "seamMax": 0.0005
+      },
+      "after": {
+        "mirrorHorizontal": 0.23056,
+        "mirrorVertical": 0.62936,
+        "mirrorMax": 0.62936,
+        "seamHorizontal": 0.006224,
+        "seamVertical": 0.007026,
+        "seamMax": 0.007026
+      }
+    },
+    {
+      "path": "game\\assets\\generated\\background_tiles\\smoky_amber_cloud_01_tile.png",
+      "before": {
+        "mirrorHorizontal": -0.05357,
+        "mirrorVertical": 0.20422,
+        "mirrorMax": 0.20422,
+        "seamHorizontal": 0.001069,
+        "seamVertical": 0.001948,
+        "seamMax": 0.001948
+      },
+      "after": {
+        "mirrorHorizontal": -0.02407,
+        "mirrorVertical": 0.12964,
+        "mirrorMax": 0.12964,
+        "seamHorizontal": 0.005341,
+        "seamVertical": 0.005361,
+        "seamMax": 0.005361
+      }
+    },
+    {
+      "path": "game\\assets\\generated\\background_tiles\\cold_blue_void_01_tile.png",
+      "before": {
+        "mirrorHorizontal": 0.12586,
+        "mirrorVertical": 0.18154,
+        "mirrorMax": 0.18154,
+        "seamHorizontal": 0.002289,
+        "seamVertical": 0.002083,
+        "seamMax": 0.002289
+      },
+      "after": {
+        "mirrorHorizontal": 0.05243,
+        "mirrorVertical": 0.18107,
+        "mirrorMax": 0.18107,
+        "seamHorizontal": 0.005691,
+        "seamVertical": 0.006042,
+        "seamMax": 0.006042
+      }
+    }
+  ]
+}

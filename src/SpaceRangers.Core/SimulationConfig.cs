@@ -1,0 +1,65 @@
+namespace SpaceRangers.Core;
+
+public sealed record SimulationConfig
+{
+    public const int TickRate = 60;
+
+    public float FixedDelta { get; init; } = 1f / TickRate;
+    public float ForwardAcceleration { get; init; } = 920f;
+    public float ReverseAcceleration { get; init; } = 290f;
+    public float StrafeAcceleration { get; init; } = 560f;
+    public float TurnSpeed { get; init; } = 3.05f;
+    public float LinearDamping { get; init; } = 0.72f;
+    public float MaxSpeed { get; init; } = 500f;
+    public float AfterburnerMaxSpeed { get; init; } = 1000f;
+    public float AfterburnerHighSpeedAcceleration { get; init; } = 760f;
+    public float ProjectileSpeed { get; init; } = 1450f;
+    public float ProjectileLifetime { get; init; } = 1.35f;
+    public float ProjectileDamage { get; init; } = 100f;
+    public int MaxProjectiles { get; init; } = 640;
+    public float WeaponCooldown { get; init; } = 0.135f;
+    public float WeaponEnergyCost { get; init; } = 2.5f;
+    public float EnergyRechargePerSecond { get; init; } = 18f;
+    public float MaxEnergy { get; init; } = 100f;
+    public float MaxShield { get; init; } = 1000f;
+    public float MaxArmor { get; init; } = 1000f;
+    public float MaxStructure { get; init; } = 1000f;
+    public float ShieldRegenerationPerSecond { get; init; } = 40f;
+    public float ShieldZeroRegenerationLockout { get; init; } = 12f;
+    public float ShipModeSwitchCooldown { get; init; } = 3f;
+    public float ShipRadius { get; init; } = 42f;
+    public float ShipCollisionDamageSpeedThreshold { get; init; } = 140f;
+    public float ShipCollisionDamageReferenceSpeed { get; init; } = 900f;
+    public float ShipCollisionDamageScale { get; init; } = 0.42f;
+    public float ShipCollisionDamageCooldown { get; init; } = 0.28f;
+    public float ShipCollisionRestitution { get; init; } = 0.10f;
+    public float ShipCollisionImpulseScale { get; init; } = 0.46f;
+    public float ShipCollisionSeparationPercent { get; init; } = 0.56f;
+    public float ShipCollisionMaxCorrection { get; init; } = 32f;
+    public float ShipAiAvoidanceMargin { get; init; } = 260f;
+    public float ShipAiAsteroidAvoidanceMargin { get; init; } = 360f;
+    public float StarVisualWorldSize { get; set; } = AsteroidPhysics.SunVisualWorldSize;
+    public float SunBurnDamageRadius { get; init; } = AsteroidPhysics.SunVisualWorldSize * 0.5f;
+    public float SunBurnDamageMinPerSecond { get; init; } = 10f;
+    public float SunBurnDamageMaxPerSecond { get; init; } = 100f;
+    public WorldBounds Bounds { get; init; } = new(24000f, 16000f);
+    public bool AsteroidsEnabled { get; init; } = true;
+    public int AsteroidSeed { get; init; } = 1337;
+    public int AsteroidInitialActiveCount { get; init; } = 8;
+    public int AsteroidMinActiveCount { get; init; } = 5;
+    public int AsteroidMaxActiveCount { get; init; } = 12;
+    public int AsteroidVariantCount { get; init; } = 32;
+    public float AsteroidSpawnIntervalMin { get; init; } = 3.4f;
+    public float AsteroidSpawnIntervalMax { get; init; } = 7.5f;
+    public float AsteroidMinReferenceDiameter { get; init; } = 50f;
+    public float AsteroidMaxReferenceDiameter { get; init; } = 150f;
+    public float AsteroidMinSpeed { get; init; } = 100f;
+    public float AsteroidMaxSpeed { get; init; } = 1500f;
+    public float AsteroidMaxStructure { get; init; } = 2500f;
+    public float AsteroidSunGravity { get; init; } = 1000f;
+    public float AsteroidGravityMinDistance { get; init; } = 820f;
+    public float AsteroidSunBurnRadius { get; init; } = 680f;
+    public float AsteroidHeatRadius { get; init; } = 5200f;
+    public float AsteroidBurnDamagePerSecond { get; init; } = 3800f;
+    public float AsteroidRemovalMargin { get; init; } = 1800f;
+}

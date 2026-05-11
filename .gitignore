@@ -1,0 +1,15 @@
+.godot/
+.tools/
+build/
+diagnostics/
+tmp/
+AOP/
+premium assets/
+tools/generated/backups/
+tools/generated/imagegen_sheets/
+tools/__pycache__/
+game/assets/reviews/
+**/bin/
+**/obj/
+*.user
+*.tmp

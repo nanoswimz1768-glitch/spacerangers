@@ -72,6 +72,7 @@ public partial class GameRoot : Node2D
     private int _klissanShipTextureIndex = -1;
     private string _selectedShipName = "Prototype";
     private string _warpTargetSystemId = string.Empty;
+    private float _selectedShipVisualScale = ShipCatalog.DefaultVisualScale;
     private float _warpChargeSeconds;
     private bool _warpInTransit;
     private float _warpTransitElapsed;
@@ -207,6 +208,7 @@ public partial class GameRoot : Node2D
         RunAsteroidVfxSmokeTest();
         RunProjectileImpactVfxSmokeTest();
         RunShipVfxSmokeTest();
+        RunWarpVfxSmokeTest();
         ConfigureVfxCapture();
         ConfigureFrameCapture();
         UpdateVisuals(0.0, _snapshot, SnapshotTimeSeconds(_snapshot));
@@ -391,13 +393,17 @@ public partial class GameRoot : Node2D
             _playerDeathExplosionSpawned = false;
         }
 
-        _shipView.Position = shipPosition;
+        var warpVisual = BuildWarpVisualState(shipPosition, ship.Rotation);
+        _shipView.Position = warpVisual.ShipPosition;
         _shipView.Rotation = ship.Rotation;
+        _shipView.Scale = warpVisual.ShipScale;
+        _shipView.Modulate = new Color(1f, 1f, 1f, warpVisual.ShipAlpha);
         _shipView.Velocity = ship.Velocity.ToGodot();
         if (_warpTunnel is not null && _warpTunnel.Active)
         {
-            _warpTunnel.Position = shipPosition;
+            _warpTunnel.Position = warpVisual.TunnelPosition;
             _warpTunnel.Rotation = ship.Rotation;
+            _warpTunnel.MouthOffset = warpVisual.TunnelMouthOffset;
         }
 
         var aimDelta = _latestCommand.AimWorld.ToGodot() - shipPosition;
@@ -459,6 +465,53 @@ public partial class GameRoot : Node2D
         _background.SetVisualTime(systemTimeSeconds);
         _enemyStatusLayer.SetState(visualSnapshot.Ships, _simulation.PlayerShipId, visibleWorldRect, _statusBarEnemyIds);
         _hud.SetState(visualSnapshot, _simulation.PlayerShipId, _latestCommand.AimWorld, _selectedShipName, _simulation.PlayerGodMode, systemTimeSeconds);
+    }
+
+    private WarpVisualState BuildWarpVisualState(Vector2 shipPosition, float shipRotation)
+    {
+        var baseScale = new Vector2(_selectedShipVisualScale, _selectedShipVisualScale);
+        var defaultState = new WarpVisualState(shipPosition, baseScale, 1f, shipPosition, new Vector2(0f, -540f));
+        if (!_warpInTransit)
+        {
+            return defaultState;
+        }
+
+        var halfTime = Math.Max(0.001f, WarpTransitSeconds * 0.5f);
+        var phaseElapsed = _warpTransitSwitched
+            ? _warpTransitElapsed - halfTime
+            : _warpTransitElapsed;
+        var phase = Math.Clamp(phaseElapsed / halfTime, 0f, 1f);
+        var forward = Vector2.Up.Rotated(shipRotation);
+        var mouthOffset = new Vector2(0f, -540f);
+
+        if (!_warpTransitSwitched)
+        {
+            var enter = SmoothStep(0.12f, 0.96f, phase);
+            var pull = MathF.Pow(enter, 1.12f);
+            var shipOffset = forward * (460f * pull);
+            var scale = _selectedShipVisualScale * (1f - 0.42f * SmoothStep(0.40f, 1f, phase));
+            var alpha = 1f - SmoothStep(0.72f, 1f, phase) * 0.92f;
+            var tunnelReach = 520f + SmoothStep(0.42f, 1f, phase) * 70f;
+            mouthOffset = new Vector2(0f, -tunnelReach);
+            return new WarpVisualState(
+                shipPosition + shipOffset,
+                new Vector2(scale, scale),
+                alpha,
+                shipPosition,
+                mouthOffset);
+        }
+
+        var exit = SmoothStep(0.06f, 0.90f, phase);
+        var shipStartOffset = forward * (460f * (1f - exit));
+        var exitScale = _selectedShipVisualScale * (0.58f + 0.42f * exit);
+        var exitAlpha = SmoothStep(0.02f, 0.30f, phase);
+        mouthOffset = new Vector2(0f, -520f + SmoothStep(0.60f, 1f, phase) * 45f);
+        return new WarpVisualState(
+            shipPosition + shipStartOffset,
+            new Vector2(exitScale, exitScale),
+            exitAlpha,
+            shipPosition,
+            mouthOffset);
     }
 
     private void ToggleStarMap()
@@ -542,7 +595,8 @@ public partial class GameRoot : Node2D
         var player = PlayerShipFrom(_snapshot);
         if (_warpInTransit)
         {
-            UpdateWarpTransit(delta);
+            var warpDelta = Math.Min(delta, 0.05);
+            UpdateWarpTransit(warpDelta);
             player = PlayerShipFrom(_snapshot);
             UpdateWarpDriveVisualState(player);
             return;
@@ -760,8 +814,10 @@ public partial class GameRoot : Node2D
         _shipView.WarpTransitLevel = _warpInTransit ? 1f : 0f;
         if (_warpTunnel is not null && _warpTunnel.Active)
         {
-            _warpTunnel.Position = _shipView.Position;
-            _warpTunnel.Rotation = _shipView.Rotation;
+            var warpVisual = BuildWarpVisualState(player.Position.ToGodot(), player.Rotation);
+            _warpTunnel.Position = warpVisual.TunnelPosition;
+            _warpTunnel.Rotation = player.Rotation;
+            _warpTunnel.MouthOffset = warpVisual.TunnelMouthOffset;
         }
     }
 
@@ -1671,6 +1727,43 @@ public partial class GameRoot : Node2D
         GD.Print("Stress ship VFX: spawned per-ship cutout explosions for player and NPC samples.");
     }
 
+    private void RunWarpVfxSmokeTest()
+    {
+        if (!ReadBoolUserArg("--warp-vfx-smoke"))
+        {
+            return;
+        }
+
+        EnsureGeneratedSystemsLoaded();
+        StarSystemDefinition? targetSystem = null;
+        for (var index = 0; index < _generatedSystems.Count; index++)
+        {
+            var entry = _generatedSystems[index];
+            if (SameSystemId(entry.Id, _currentSystem.Id))
+            {
+                continue;
+            }
+
+            targetSystem = StarSystemLoader.LoadSystem(entry.File);
+            break;
+        }
+
+        if (targetSystem is null && !SameSystemId(_currentSystem.Id, SolarSystem.Sol.Id))
+        {
+            targetSystem = SolarSystem.Sol;
+        }
+
+        if (targetSystem is null)
+        {
+            GD.Print("Warp VFX smoke skipped: no alternate star system is available.");
+            return;
+        }
+
+        _warpTargetSystemId = targetSystem.Id;
+        _warpChargeSeconds = WarpCalibrationSeconds;
+        TryStartWarpTransit();
+    }
+
     private void PlaceStressPlayerIfRequested()
     {
         var nearId = ReadStringUserArg("--stress-near", string.Empty);
@@ -2494,6 +2587,7 @@ public partial class GameRoot : Node2D
         _shipView.EnginePlumeTexture = ShipCatalog.LoadTexture(ShipCatalog.ThrustPlumeTexturePath(path));
         _shipView.ExhaustPorts = _selectedShipExhaustPorts;
         _shipView.RigProfile = rigProfile;
+        _selectedShipVisualScale = profile.Scale;
         _shipView.Scale = new Vector2(profile.Scale, profile.Scale);
         _shipView.HitboxLocalCenter = profile.HitboxLocalCenter;
         _shipView.HitboxLocalSize = profile.HitboxLocalSize;
@@ -2614,6 +2708,24 @@ public partial class GameRoot : Node2D
         direction = CoreVector2.Normalize(direction);
         return MathF.Atan2(direction.X, -direction.Y);
     }
+
+    private static float SmoothStep(float edge0, float edge1, float value)
+    {
+        if (Math.Abs(edge1 - edge0) <= 0.0001f)
+        {
+            return value < edge0 ? 0f : 1f;
+        }
+
+        var x = Math.Clamp((value - edge0) / (edge1 - edge0), 0f, 1f);
+        return x * x * (3f - 2f * x);
+    }
+
+    private readonly record struct WarpVisualState(
+        Vector2 ShipPosition,
+        Vector2 ShipScale,
+        float ShipAlpha,
+        Vector2 TunnelPosition,
+        Vector2 TunnelMouthOffset);
 
     private static void ConfigureInputMap()
     {

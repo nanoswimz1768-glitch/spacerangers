@@ -1427,6 +1427,14 @@ Added 2026-05-11:
 - Arrival spawn is inside the world bounds near a random edge, with the ship facing the star at the center.
 - `HudOverlay` owns the warp charge percentage bar; `ShipView` owns the ship-local calibration glow/rings.
 
+Warp VFX V2 notes:
+
+- The warp visual is a corridor/sleeve from the ship nose into a forward mouth, not a detached portal.
+- During outbound transit the player ship is visually pulled into the sleeve and fades/scales into the mouth; during arrival it starts inside the sleeve and exits back to the spawn point.
+- `WarpTunnelLayer` uses imported premium EffectBlocks textures already present under `game/assets/effects/effectblocks` for the portal ring and sparkle accents, while keeping the sleeve, speed streaks, and colorization procedural.
+- Warp state clamps large frame deltas so first-frame stalls cannot skip the entrance/arrival phases.
+- The HUD warp bar is drawn above the bottom panel so it does not overlap the normal navigation status.
+
 ## Safe Change Checklist
 
 Перед финальным ответом после правок желательно:

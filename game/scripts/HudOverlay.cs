@@ -263,7 +263,7 @@ public partial class HudOverlay : Control
 
         var font = GetThemeDefaultFont();
         var width = Math.Clamp(size.X * 0.25f, 280f, 420f);
-        var position = new Vector2(size.X * 0.5f - width * 0.5f, panelTop + 17f);
+        var position = new Vector2(size.X * 0.5f - width * 0.5f, panelTop - 21f);
         var rect = new Rect2(position, new Vector2(width, 8f));
         var color = _warpTransit
             ? new Color(0.72f, 0.96f, 1f, 0.98f)

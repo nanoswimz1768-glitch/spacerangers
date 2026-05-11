@@ -60,6 +60,7 @@ public partial class ShipView : Node2D
     public float EngineEffectScale { get; set; } = 1f;
     public float EngineBubbleScale { get; set; } = 1f;
     public float EngineParticleDensity { get; set; } = 1f;
+    public Texture2D? EnginePlumeTexture { get; set; }
     public IReadOnlyList<EnginePort> ExhaustPorts { get; set; } = Array.Empty<EnginePort>();
     public ShipRigProfile RigProfile
     {
@@ -432,6 +433,7 @@ public partial class ShipView : Node2D
         var effectScale = _textureEffectScale * Math.Clamp(EngineEffectScale, 0.35f, 2.5f);
         var length = (128f + 72f * intensity) * intensity * flicker * lengthBoost * effectScale;
         var portCount = SelectRenderablePorts();
+        var usesTexturedPlume = EnginePlumeTexture is not null;
 
         var clusterMinX = float.PositiveInfinity;
         var clusterMaxX = float.NegativeInfinity;
@@ -455,23 +457,31 @@ public partial class ShipView : Node2D
             var port = _renderPorts[i];
             var nozzle = port.Position;
             var bubbleScale = Math.Clamp(EngineBubbleScale, 0f, 1.5f);
-            var nozzleBubbleScale = Math.Clamp(bubbleScale, 0.18f, 1.5f);
+            var nozzleBubbleScale = usesTexturedPlume ? Math.Clamp(bubbleScale, 0.12f, 0.34f) : Math.Clamp(bubbleScale, 0.18f, 1.5f);
             var radius = Math.Clamp(port.Radius * Math.Clamp(EngineEffectScale, 0.35f, 2.5f), 6f, 64f);
             var portPhase = _phase + nozzle.X * 0.061f + nozzle.Y * 0.025f;
             var sway = MathF.Sin(portPhase * 1.7f) * (2.8f + radius * 0.08f);
             var portLength = length * (0.88f + MathF.Sin(portPhase) * 0.12f);
             var halfWidth = radius * (0.64f + intensity * 0.52f) * widthBoost;
             var seed = nozzle.X * 12.9898f + nozzle.Y * 78.233f + radius * 19.19f;
+            var coreNozzleScale = usesTexturedPlume ? 0.62f : MathF.Max(0.52f, nozzleBubbleScale);
 
             DrawCircle(nozzle + new Vector2(0f, 7f * effectScale), radius * (1.9f + intensity * 0.92f) * widthBoost * nozzleBubbleScale, WithAlpha(EngineOuterColor, 0.16f * intensity * glowBoost * nozzleBubbleScale));
             DrawCircle(nozzle + new Vector2(0f, 4f * effectScale), radius * 1.12f * widthBoost * nozzleBubbleScale, WithAlpha(Mix(EngineOuterColor, EngineCoreColor, 0.58f), 0.42f * intensity * glowBoost * nozzleBubbleScale));
-            DrawCircle(nozzle + new Vector2(0f, 1.5f * effectScale), radius * 0.56f * widthBoost * MathF.Max(0.52f, nozzleBubbleScale), WithAlpha(EngineCoreColor, 0.92f * intensity * MathF.Max(0.68f, nozzleBubbleScale)));
-            if (afterburner > 0.01f)
+            DrawCircle(nozzle + new Vector2(0f, 1.5f * effectScale), radius * 0.56f * widthBoost * coreNozzleScale, WithAlpha(EngineCoreColor, 0.92f * intensity * MathF.Max(0.68f, nozzleBubbleScale)));
+            if (afterburner > 0.01f && !usesTexturedPlume)
             {
                 DrawCircle(nozzle + new Vector2(0f, 11f * effectScale), radius * 3.4f * nozzleBubbleScale, WithAlpha(Mix(EngineCoreColor, Colors.White, 0.38f), 0.18f * intensity * afterburner * nozzleBubbleScale));
             }
 
-            DrawPlasmaPlume(nozzle, portLength, isolateSeparatedPorts ? halfWidth * 0.62f : halfWidth, sway, Math.Clamp(intensity * glowBoost, 0f, 1.7f), seed);
+            if (usesTexturedPlume)
+            {
+                DrawTexturedPlasmaPlume(nozzle, portLength, isolateSeparatedPorts ? halfWidth * 0.58f : halfWidth, sway, Math.Clamp(intensity * glowBoost, 0f, 1.7f), seed);
+            }
+            else
+            {
+                DrawPlasmaPlume(nozzle, portLength, isolateSeparatedPorts ? halfWidth * 0.62f : halfWidth, sway, Math.Clamp(intensity * glowBoost, 0f, 1.7f), seed);
+            }
         }
 
         if (portCount == 1 || hasCentralPort)
@@ -483,6 +493,64 @@ public partial class ShipView : Node2D
                 var y = clusterY + 18f * effectScale + i * (afterburner > 0.01f ? 8f : 12f) * effectScale + length * 0.16f;
                 DrawCircle(new Vector2(clusterCenter.X + offset, y), (1.5f + intensity * (1.2f + afterburner * 1.1f)) * effectScale, WithAlpha(EngineCoreColor, 0.16f * intensity * glowBoost));
             }
+        }
+    }
+
+    private void DrawTexturedPlasmaPlume(Vector2 nozzle, float length, float halfWidth, float sway, float intensity, float seed)
+    {
+        if (EnginePlumeTexture is not { } texture)
+        {
+            return;
+        }
+
+        var afterburner = Math.Clamp(AfterburnerLevel, 0f, 1f);
+        var shimmer = 0.94f + MathF.Sin(_phase * 1.35f + seed * 0.017f) * 0.05f;
+        var width = Math.Clamp(halfWidth * (1.44f + afterburner * 0.18f), 15f, 82f);
+        var height = Math.Clamp(length * (0.88f + afterburner * 0.09f) * shimmer, 50f, 238f);
+        var y = nozzle.Y + Math.Max(5f, halfWidth * 0.24f);
+        var x = nozzle.X - width * 0.5f + sway * 0.08f;
+        var outer = new Rect2(new Vector2(x, y), new Vector2(width, height));
+        DrawTextureRect(texture, outer, false, WithAlpha(EngineOuterColor, 0.82f * intensity));
+
+        var coreWidth = width * 0.52f;
+        var coreHeight = height * 0.82f;
+        var core = new Rect2(
+            new Vector2(nozzle.X - coreWidth * 0.5f + sway * 0.04f, y + height * 0.02f),
+            new Vector2(coreWidth, coreHeight));
+        DrawTextureRect(texture, core, false, WithAlpha(Mix(EngineCoreColor, Colors.White, 0.16f), 0.55f * intensity));
+
+        DrawLine(
+            nozzle + new Vector2(sway * 0.04f, Math.Max(2f, halfWidth * 0.10f)),
+            nozzle + new Vector2(sway * 0.30f, Math.Min(height * 0.62f, 128f)),
+            WithAlpha(Mix(EngineCoreColor, Colors.White, 0.18f), 0.44f * intensity),
+            Math.Clamp(width * 0.070f, 1.2f, 5.0f),
+            true);
+
+        DrawTexturedPlumeParticles(nozzle, height, width, sway, intensity, seed);
+    }
+
+    private void DrawTexturedPlumeParticles(Vector2 nozzle, float length, float width, float sway, float intensity, float seed)
+    {
+        var afterburner = Math.Clamp(AfterburnerLevel, 0f, 1f);
+        var count = DetailCount(afterburner > 0.01f ? 18 : 12, afterburner > 0.01f ? 8 : 5, afterburner > 0.01f ? 4 : 2);
+        for (var i = 0; i < count; i++)
+        {
+            var h0 = Hash01(seed + i * 31.17f);
+            var h1 = Hash01(seed + i * 53.41f);
+            var h2 = Hash01(seed + i * 77.71f);
+            var life = Fract(h0 + _phase * (0.032f + h2 * 0.034f + afterburner * 0.016f));
+            var fade = MathF.Pow(1f - life, 1.42f);
+            var spread = width * (0.16f + life * 0.34f);
+            var x = HashSigned(seed + i * 19.37f) * spread + sway * life * 0.52f;
+            var y = length * (0.12f + life * 0.82f);
+            var position = nozzle + new Vector2(x, y);
+            var tint = Mix(EngineCoreColor, EngineOuterColor, 0.38f + h1 * 0.42f);
+            var alpha = intensity * fade * (0.12f + h2 * 0.18f);
+            var radius = 0.55f + h1 * (1.2f + afterburner * 0.55f);
+            var streak = new Vector2(HashSigned(seed + i * 11.11f) * width * 0.08f, 4.5f + h0 * (8.5f + afterburner * 5.5f));
+
+            DrawLine(position - streak * 0.22f, position + streak * 0.72f, WithAlpha(tint, alpha * 0.72f), Math.Max(0.45f, radius * 0.38f), true);
+            DrawCircle(position, radius, WithAlpha(tint, alpha));
         }
     }
 

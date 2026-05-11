@@ -1802,6 +1802,7 @@ public partial class GameRoot : Node2D
         _shipView.EngineEffectScale = ShipCatalog.ThrustSizeMultiplier(path);
         _shipView.EngineBubbleScale = ShipCatalog.ThrustBubbleMultiplier(path);
         _shipView.EngineParticleDensity = ShipCatalog.ThrustParticleDensity(path);
+        _shipView.EnginePlumeTexture = ShipCatalog.LoadTexture(ShipCatalog.ThrustPlumeTexturePath(path));
         _shipView.ExhaustPorts = _selectedShipExhaustPorts;
         _shipView.RigProfile = rigProfile;
         _shipView.Scale = new Vector2(profile.Scale, profile.Scale);
@@ -1826,6 +1827,7 @@ public partial class GameRoot : Node2D
             EngineEffectScale = ShipCatalog.ThrustSizeMultiplier(path),
             EngineBubbleScale = ShipCatalog.ThrustBubbleMultiplier(path),
             EngineParticleDensity = ShipCatalog.ThrustParticleDensity(path),
+            EnginePlumeTexture = ShipCatalog.LoadTexture(ShipCatalog.ThrustPlumeTexturePath(path)),
             ExhaustPorts = exhaustPorts,
             RigProfile = ShipCatalog.RigProfileForPath(texture, profile, exhaustPorts),
             HitboxLocalCenter = profile.HitboxLocalCenter,

@@ -8,6 +8,7 @@ public static class ShipCatalog
 {
     public const float DefaultVisualScale = 0.42f;
     private const float HitboxAlphaThreshold = 0.28f;
+    private const string KlissanThrustPlumeTexturePath = "res://assets/effects/klissan_thrust_plume.png";
 
     private static ShipManifestEntry[]? _manifestCache;
 
@@ -64,6 +65,11 @@ public static class ShipCatalog
 
     public static Texture2D? LoadTexture(string path)
     {
+        if (string.IsNullOrWhiteSpace(path) || !ResourceLoader.Exists(path))
+        {
+            return null;
+        }
+
         return ResourceLoader.Load<Texture2D>(path);
     }
 
@@ -150,6 +156,13 @@ public static class ShipCatalog
     public static float ThrustParticleDensity(string path)
     {
         return 1f;
+    }
+
+    public static string ThrustPlumeTexturePath(string path)
+    {
+        return RaceFromPath(path) == "Klissan"
+            ? KlissanThrustPlumeTexturePath
+            : string.Empty;
     }
 
     public static IReadOnlyList<EnginePort> ExhaustPortsForPath(string path)

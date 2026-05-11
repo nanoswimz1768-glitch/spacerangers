@@ -61,6 +61,9 @@ public partial class ShipView : Node2D
     public float EngineBubbleScale { get; set; } = 1f;
     public float EngineParticleDensity { get; set; } = 1f;
     public Texture2D? EnginePlumeTexture { get; set; }
+    public float WarpChargeLevel { get; set; }
+    public bool WarpChargeActive { get; set; }
+    public float WarpTransitLevel { get; set; }
     public IReadOnlyList<EnginePort> ExhaustPorts { get; set; } = Array.Empty<EnginePort>();
     public ShipRigProfile RigProfile
     {
@@ -170,6 +173,7 @@ public partial class ShipView : Node2D
         {
             DrawSetTransform(_idleVisualOffset, _idleVisualRotation, _idleVisualScale);
             DrawEngineGlow();
+            DrawWarpChargeField();
             if (EffectQuality == ShipEffectQuality.Full || (EffectQuality == ShipEffectQuality.Balanced && IsFiring))
             {
                 DrawTurretCue();
@@ -198,6 +202,8 @@ public partial class ShipView : Node2D
             || ReverseLevel > 0.01f
             || Math.Abs(StrafeLevel) > 0.01f
             || AfterburnerLevel > 0.01f
+            || WarpChargeLevel > 0.01f
+            || WarpTransitLevel > 0.01f
             || IsFiring;
         if (!hasAnimatedEffect)
         {
@@ -420,6 +426,61 @@ public partial class ShipView : Node2D
             var strafe = Math.Clamp(Math.Abs(StrafeLevel), 0f, 1f);
             DrawLine(new Vector2(-side * 54f, 22f), new Vector2(-side * (90f + 10f * flicker), 22f), WithAlpha(EngineOuterColor, 0.46f * strafe), 6f, true);
             DrawLine(new Vector2(-side * 48f, -12f), new Vector2(-side * (76f + 8f * flicker), -12f), WithAlpha(EngineCoreColor, 0.42f * strafe), 2.6f, true);
+        }
+    }
+
+    private void DrawWarpChargeField()
+    {
+        var charge = Math.Clamp(WarpChargeLevel, 0f, 1f);
+        var transit = Math.Clamp(WarpTransitLevel, 0f, 1f);
+        var intensity = Math.Max(charge * (WarpChargeActive ? 1f : 0.38f), transit);
+        if (intensity <= 0.01f)
+        {
+            return;
+        }
+
+        var bounds = HitboxLocalSize;
+        var radius = Math.Clamp(Math.Max(bounds.X, bounds.Y) * 0.62f, 46f, 148f) * _textureEffectScale;
+        var color = Mix(EngineOuterColor, EngineCoreColor, 0.22f + charge * 0.34f);
+        var core = Mix(EngineCoreColor, Colors.White, transit > 0f ? 0.30f : 0.08f);
+        var pulse = 0.5f + 0.5f * MathF.Sin(_phase * (0.72f + charge * 0.32f));
+        var ringAlpha = (0.10f + charge * 0.18f + transit * 0.22f) * intensity;
+        var spin = _phase * (0.24f + charge * 0.12f);
+
+        DrawCircle(HitboxLocalCenter, radius * (0.92f + pulse * 0.05f), WithAlpha(color, ringAlpha * 0.18f));
+        for (var i = 0; i < 4; i++)
+        {
+            var start = spin + i * MathF.Tau / 4f;
+            DrawArc(
+                HitboxLocalCenter,
+                radius * (0.78f + i * 0.075f),
+                start,
+                start + MathF.Tau * (0.10f + charge * 0.035f),
+                22,
+                WithAlpha(color, ringAlpha),
+                1.0f + charge * 1.1f + transit * 1.4f,
+                true);
+        }
+
+        var particleCount = EffectQuality == ShipEffectQuality.Full ? 18 : 10;
+        for (var i = 0; i < particleCount; i++)
+        {
+            var h0 = Hash01(i * 19.73f + _idleSeed * 0.01f);
+            var h1 = Hash01(i * 37.11f + 4.7f);
+            var life = Fract(h0 + _phase * (0.035f + charge * 0.026f + transit * 0.045f));
+            var angle = h1 * MathF.Tau + _phase * 0.06f;
+            var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            var distance = radius * (1.18f - life * 0.58f);
+            var position = HitboxLocalCenter + direction * distance;
+            var tail = position + direction * (10f + charge * 18f) * (transit > 0f ? 1.8f : 1f);
+            var alpha = intensity * (1f - life) * (0.18f + h1 * 0.22f);
+            DrawLine(tail, position, WithAlpha(color, alpha), 0.8f + charge * 1.2f, true);
+            DrawCircle(position, 1.2f + charge * 2.2f, WithAlpha(core, alpha * 0.86f));
+        }
+
+        if (charge >= 0.98f || transit > 0.01f)
+        {
+            DrawArc(HitboxLocalCenter, radius * 1.08f, -spin * 1.4f, -spin * 1.4f + MathF.Tau * 0.72f, 72, WithAlpha(core, 0.18f + transit * 0.24f), 1.4f + transit * 1.8f, true);
         }
     }
 

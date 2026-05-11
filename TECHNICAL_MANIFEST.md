@@ -1414,6 +1414,19 @@ python tools/generate_star_systems.py --seed 3311337 --clean --write-image-promp
 - после каждой кодовой/ассетной правки обновлять `TECHNICAL_MANIFEST.md`;
 - после каждой правки в финальном ответе давать команду запуска игры.
 
+## Warp Runtime V1
+
+Added 2026-05-11:
+
+- `StarMapOverlay` is the target selector only; `OK` tunes the warp target and does not perform the jump.
+- Calibration starts only after the player leaves the paused starmap and returns to active gameplay.
+- Warp calibration takes 12 seconds, advances only in `ShipMode.Navigation`, and resets to 0 on Combat mode, target change, drive reset, or system change.
+- At 100% charge, `B` starts a 3-second transit. Control is blocked during transit.
+- `B` is ignored while `StarMapOverlay` is open, because the map is a paused target-selection surface.
+- `WarpTunnelLayer` draws a ship-palette-colored outbound tunnel, switches the star system halfway through, then draws the arrival tunnel in the destination system.
+- Arrival spawn is inside the world bounds near a random edge, with the ship facing the star at the center.
+- `HudOverlay` owns the warp charge percentage bar; `ShipView` owns the ship-local calibration glow/rings.
+
 ## Safe Change Checklist
 
 Перед финальным ответом после правок желательно:

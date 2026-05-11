@@ -17,6 +17,8 @@ public partial class GameRoot : Node2D
     private const double StressWarmupSeconds = 1.5;
     private const float DebugAsteroidSpawnDistance = 1250f;
     private const float DebugAsteroidExplosionDistance = 2600f;
+    private const float WarpCalibrationSeconds = 12f;
+    private const float WarpTransitSeconds = 3f;
     private static readonly CoreVector2 SystemArrivalPosition = new(1650f, -980f);
     private const float SystemArrivalRotation = -0.28f;
 
@@ -54,6 +56,7 @@ public partial class GameRoot : Node2D
     private DebugHitboxLayer _debugHitboxLayer = null!;
     private EnemyStatusLayer _enemyStatusLayer = null!;
     private ReticleView _reticle = null!;
+    private WarpTunnelLayer _warpTunnel = null!;
     private HudOverlay _hud = null!;
     private StarMapOverlay _starMap = null!;
     private StarMapToggleButton _starMapButton = null!;
@@ -69,6 +72,13 @@ public partial class GameRoot : Node2D
     private int _klissanShipTextureIndex = -1;
     private string _selectedShipName = "Prototype";
     private string _warpTargetSystemId = string.Empty;
+    private float _warpChargeSeconds;
+    private bool _warpInTransit;
+    private float _warpTransitElapsed;
+    private bool _warpTransitSwitched;
+    private StarSystemDefinition? _pendingWarpSystem;
+    private int _pendingWarpGeneratedIndex = -1;
+    private readonly Random _warpRandom = new(0x5A17B00);
     private bool _useKlissanShipGroup;
     private bool _playerDeathExplosionSpawned;
     private bool _showShipHitboxes;
@@ -149,6 +159,9 @@ public partial class GameRoot : Node2D
         SelectShipTexture(ShipCatalog.IndexOfPreferred(_shipTexturePaths, "2PeopleR"));
         SelectStartupShipIfRequested();
 
+        _warpTunnel = new WarpTunnelLayer();
+        AddChild(_warpTunnel);
+
         _reticle = new ReticleView();
         _reticle.Scale = new Vector2(0.45f, 0.45f);
         AddChild(_reticle);
@@ -201,9 +214,29 @@ public partial class GameRoot : Node2D
 
     public override void _Process(double delta)
     {
-        if (Input.IsActionJustPressed("star_map_toggle"))
+        if (!_warpInTransit && Input.IsActionJustPressed("star_map_toggle"))
         {
             ToggleStarMap();
+        }
+
+        UpdateWarpDrive(delta);
+        if (!_warpInTransit && Input.IsActionJustPressed("warp_jump"))
+        {
+            TryStartWarpTransit();
+        }
+
+        if (_warpInTransit)
+        {
+            if (Input.MouseMode != Input.MouseModeEnum.Hidden)
+            {
+                Input.MouseMode = Input.MouseModeEnum.Hidden;
+            }
+
+            var player = PlayerShipFrom(_snapshot);
+            _latestCommand = InputCommand.Idle(player.Id == _simulation.PlayerShipId ? player.Position : CoreVector2.Zero);
+            UpdateVisuals(0.0, _snapshot, SnapshotTimeSeconds(_snapshot));
+            UpdateFrameCapture(delta);
+            return;
         }
 
         if (_starMap.Visible)
@@ -361,6 +394,12 @@ public partial class GameRoot : Node2D
         _shipView.Position = shipPosition;
         _shipView.Rotation = ship.Rotation;
         _shipView.Velocity = ship.Velocity.ToGodot();
+        if (_warpTunnel is not null && _warpTunnel.Active)
+        {
+            _warpTunnel.Position = shipPosition;
+            _warpTunnel.Rotation = ship.Rotation;
+        }
+
         var aimDelta = _latestCommand.AimWorld.ToGodot() - shipPosition;
         var afterburnerActive = ship.Mode == ShipMode.Navigation && _latestCommand.Afterburner && _latestCommand.Reverse <= 0.01f;
         _shipView.AimDirection = aimDelta.LengthSquared() > 0.001f
@@ -450,8 +489,15 @@ public partial class GameRoot : Node2D
 
     private void TuneWarpTarget(StarMapSystemEntry target)
     {
+        var changed = !SameSystemId(_warpTargetSystemId, target.Id);
         _warpTargetSystemId = target.Id;
+        if (changed)
+        {
+            ResetWarpChargeOnly();
+        }
+
         _hud.SetWarpTarget(target.DisplayName);
+        UpdateWarpDriveVisualState(PlayerShipFrom(_snapshot));
         SyncStarMapData();
         GD.Print($"Warp engine tuned: {target.DisplayName} ({target.Id}).");
     }
@@ -459,7 +505,9 @@ public partial class GameRoot : Node2D
     private void ResetWarpTarget()
     {
         _warpTargetSystemId = string.Empty;
+        ResetWarpChargeOnly();
         _hud.SetWarpTarget(string.Empty);
+        UpdateWarpDriveVisualState(PlayerShipFrom(_snapshot));
         SyncStarMapData();
         GD.Print("Warp engine target reset.");
     }
@@ -486,6 +534,234 @@ public partial class GameRoot : Node2D
         if (!string.IsNullOrWhiteSpace(inspectedSystem))
         {
             _starMap.ShowPlanetPopupForSystem(inspectedSystem);
+        }
+    }
+
+    private void UpdateWarpDrive(double delta)
+    {
+        var player = PlayerShipFrom(_snapshot);
+        if (_warpInTransit)
+        {
+            UpdateWarpTransit(delta);
+            player = PlayerShipFrom(_snapshot);
+            UpdateWarpDriveVisualState(player);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_warpTargetSystemId)
+            || SameSystemId(_warpTargetSystemId, _currentSystem.Id)
+            || _starMap.Visible
+            || player.Id != _simulation.PlayerShipId
+            || player.IsDestroyed)
+        {
+            if (!_starMap.Visible)
+            {
+                ResetWarpChargeOnly();
+            }
+
+            UpdateWarpDriveVisualState(player);
+            return;
+        }
+
+        if (player.Mode == ShipMode.Combat)
+        {
+            ResetWarpChargeOnly();
+            UpdateWarpDriveVisualState(player);
+            return;
+        }
+
+        _warpChargeSeconds = Math.Min(WarpCalibrationSeconds, _warpChargeSeconds + Math.Max(0f, (float)delta));
+        UpdateWarpDriveVisualState(player);
+    }
+
+    private void UpdateWarpTransit(double delta)
+    {
+        if (!_warpInTransit)
+        {
+            return;
+        }
+
+        _warpTransitElapsed += Math.Max(0f, (float)delta);
+        var halfTime = WarpTransitSeconds * 0.5f;
+        if (!_warpTransitSwitched && _warpTransitElapsed >= halfTime)
+        {
+            CompleteWarpSystemSwitch();
+        }
+
+        var phaseElapsed = _warpTransitSwitched
+            ? _warpTransitElapsed - halfTime
+            : _warpTransitElapsed;
+        var phaseDuration = Math.Max(0.001f, halfTime);
+        _warpTunnel.SetProgress(phaseElapsed / phaseDuration);
+
+        if (_warpTransitElapsed >= WarpTransitSeconds)
+        {
+            FinishWarpTransit();
+        }
+    }
+
+    private void TryStartWarpTransit()
+    {
+        if (_warpInTransit
+            || _starMap.Visible
+            || string.IsNullOrWhiteSpace(_warpTargetSystemId)
+            || _warpChargeSeconds < WarpCalibrationSeconds - 0.001f)
+        {
+            return;
+        }
+
+        var player = PlayerShipFrom(_snapshot);
+        if (player.Id != _simulation.PlayerShipId || player.Mode != ShipMode.Navigation || player.IsDestroyed)
+        {
+            ResetWarpChargeOnly();
+            UpdateWarpDriveVisualState(player);
+            return;
+        }
+
+        if (!TryResolveWarpTarget(out var targetSystem, out var generatedIndex))
+        {
+            ResetWarpTarget();
+            return;
+        }
+
+        _pendingWarpSystem = targetSystem;
+        _pendingWarpGeneratedIndex = generatedIndex;
+        _warpInTransit = true;
+        _warpTransitElapsed = 0f;
+        _warpTransitSwitched = false;
+        _starMap.Close();
+        _warpTunnel.Start(_shipView.EngineOuterColor, _shipView.EngineCoreColor, arriving: false);
+        _hud.SetWarpDriveState(1f, hasTarget: true, charging: false, ready: true, transit: true);
+        GD.Print($"Warp jump started: {_currentSystem.DisplayName} -> {targetSystem.DisplayName}.");
+    }
+
+    private bool TryResolveWarpTarget(out StarSystemDefinition targetSystem, out int generatedIndex)
+    {
+        if (SameSystemId(_warpTargetSystemId, SolarSystem.Sol.Id))
+        {
+            targetSystem = SolarSystem.Sol;
+            generatedIndex = -1;
+            return true;
+        }
+
+        EnsureGeneratedSystemsLoaded();
+        for (var index = 0; index < _generatedSystems.Count; index++)
+        {
+            var entry = _generatedSystems[index];
+            if (!SameSystemId(entry.Id, _warpTargetSystemId))
+            {
+                continue;
+            }
+
+            var system = StarSystemLoader.LoadSystem(entry.File);
+            if (system is null)
+            {
+                break;
+            }
+
+            targetSystem = system;
+            generatedIndex = index;
+            return true;
+        }
+
+        targetSystem = SolarSystem.Sol;
+        generatedIndex = -1;
+        return false;
+    }
+
+    private void CompleteWarpSystemSwitch()
+    {
+        if (_warpTransitSwitched || _pendingWarpSystem is null)
+        {
+            return;
+        }
+
+        var arrival = RandomWarpArrival();
+        SelectStarSystem(_pendingWarpSystem, _pendingWarpGeneratedIndex, arrival.Position, arrival.Rotation);
+        _warpTransitSwitched = true;
+        _warpTunnel.Start(_shipView.EngineOuterColor, _shipView.EngineCoreColor, arriving: true);
+        _warpTunnel.SetProgress(0f);
+        GD.Print($"Warp arrival: {_currentSystem.DisplayName} at {arrival.Position.X:0}, {arrival.Position.Y:0}.");
+    }
+
+    private void FinishWarpTransit()
+    {
+        if (!_warpTransitSwitched)
+        {
+            CompleteWarpSystemSwitch();
+        }
+
+        _warpInTransit = false;
+        _warpTransitElapsed = 0f;
+        _warpTransitSwitched = false;
+        _pendingWarpSystem = null;
+        _pendingWarpGeneratedIndex = -1;
+        _warpTunnel.Stop();
+        ResetWarpChargeOnly();
+        UpdateWarpDriveVisualState(PlayerShipFrom(_snapshot));
+    }
+
+    private (CoreVector2 Position, float Rotation) RandomWarpArrival()
+    {
+        var bounds = _simulation.Bounds;
+        var padding = MathF.Max(640f, CurrentPlayerHitbox().BoundingRadius + 320f);
+        var side = _warpRandom.Next(4);
+        var x = RandomRange(-bounds.HalfWidth + padding, bounds.HalfWidth - padding);
+        var y = RandomRange(-bounds.HalfHeight + padding, bounds.HalfHeight - padding);
+        var position = side switch
+        {
+            0 => new CoreVector2(x, -bounds.HalfHeight + padding),
+            1 => new CoreVector2(bounds.HalfWidth - padding, y),
+            2 => new CoreVector2(x, bounds.HalfHeight - padding),
+            _ => new CoreVector2(-bounds.HalfWidth + padding, y)
+        };
+        var rotation = RotationFacing(position, CoreVector2.Zero);
+        return (position, rotation);
+    }
+
+    private float RandomRange(float min, float max)
+    {
+        if (max <= min)
+        {
+            return min;
+        }
+
+        return min + (float)_warpRandom.NextDouble() * (max - min);
+    }
+
+    private void ResetWarpChargeOnly()
+    {
+        _warpChargeSeconds = 0f;
+    }
+
+    private void UpdateWarpDriveVisualState(ShipState player)
+    {
+        if (_hud is null || _shipView is null)
+        {
+            return;
+        }
+
+        var hasTarget = !string.IsNullOrWhiteSpace(_warpTargetSystemId)
+            && !SameSystemId(_warpTargetSystemId, _currentSystem.Id);
+        var chargeRatio = _warpInTransit
+            ? 1f
+            : Math.Clamp(_warpChargeSeconds / WarpCalibrationSeconds, 0f, 1f);
+        var charging = hasTarget
+            && !_warpInTransit
+            && !_starMap.Visible
+            && player.Id == _simulation.PlayerShipId
+            && !player.IsDestroyed
+            && player.Mode == ShipMode.Navigation
+            && chargeRatio < 1f;
+        var ready = hasTarget && chargeRatio >= 1f && !_warpInTransit && !_starMap.Visible;
+        _hud.SetWarpDriveState(chargeRatio, hasTarget, charging, ready, _warpInTransit);
+        _shipView.WarpChargeLevel = hasTarget ? chargeRatio : 0f;
+        _shipView.WarpChargeActive = charging || ready;
+        _shipView.WarpTransitLevel = _warpInTransit ? 1f : 0f;
+        if (_warpTunnel is not null && _warpTunnel.Active)
+        {
+            _warpTunnel.Position = _shipView.Position;
+            _warpTunnel.Rotation = _shipView.Rotation;
         }
     }
 
@@ -754,6 +1030,13 @@ public partial class GameRoot : Node2D
         return string.Empty;
     }
 
+    private static bool SameSystemId(string left, string right)
+    {
+        return !string.IsNullOrWhiteSpace(left)
+            && !string.IsNullOrWhiteSpace(right)
+            && string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static Color StarMapColorForArchetype(string archetype)
     {
         return archetype switch
@@ -872,7 +1155,11 @@ public partial class GameRoot : Node2D
         }
     }
 
-    private void SelectStarSystem(StarSystemDefinition system, int generatedIndex)
+    private void SelectStarSystem(
+        StarSystemDefinition system,
+        int generatedIndex,
+        CoreVector2? arrivalPosition = null,
+        float? arrivalRotation = null)
     {
         if (string.Equals(_currentSystem.Id, system.Id, StringComparison.OrdinalIgnoreCase)
             && _generatedSystemIndex == generatedIndex)
@@ -883,12 +1170,14 @@ public partial class GameRoot : Node2D
         _currentSystem = system;
         _generatedSystemIndex = generatedIndex;
         _warpTargetSystemId = string.Empty;
+        ResetWarpChargeOnly();
         ApplyStarSystemPhysics(system);
-        ResetSimulationForActiveSystem(SystemArrivalPosition, SystemArrivalRotation);
+        ResetSimulationForActiveSystem(arrivalPosition ?? SystemArrivalPosition, arrivalRotation ?? SystemArrivalRotation);
         ClearTransientVisualState();
         _background.SetSystem(system);
         _hud.SetSystem(system);
         _hud.SetWarpTarget(string.Empty);
+        UpdateWarpDriveVisualState(PlayerShipFrom(_snapshot));
         SyncStarMapData();
         UpdateVisuals(0.0, _snapshot, SnapshotTimeSeconds(_snapshot));
         GD.Print($"Star system: {system.DisplayName} ({system.Star.DisplayName}, {system.Planets.Count} planets, background {system.Background.DisplayName}).");
@@ -2349,6 +2638,7 @@ public partial class GameRoot : Node2D
         BindKey("debug_system_next", Key.F12);
         BindKey("star_map_toggle", Key.M);
         BindKey("star_map_close", Key.Escape);
+        BindKey("warp_jump", Key.B);
         BindMouse("weapon_fire", MouseButton.Left);
     }
 

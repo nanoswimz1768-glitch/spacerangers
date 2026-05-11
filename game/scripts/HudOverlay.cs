@@ -46,6 +46,11 @@ public partial class HudOverlay : Control
     private CoreVector2 _aimWorld;
     private string _shipName = string.Empty;
     private string _warpTargetName = string.Empty;
+    private float _warpChargeRatio;
+    private bool _warpHasTarget;
+    private bool _warpCharging;
+    private bool _warpReady;
+    private bool _warpTransit;
     private bool _playerGodMode;
     private float _systemTimeSeconds;
 
@@ -91,6 +96,16 @@ public partial class HudOverlay : Control
     {
         _warpTargetName = targetName;
         UpdateLabels();
+        QueueRedraw();
+    }
+
+    public void SetWarpDriveState(float chargeRatio, bool hasTarget, bool charging, bool ready, bool transit)
+    {
+        _warpChargeRatio = Math.Clamp(chargeRatio, 0f, 1f);
+        _warpHasTarget = hasTarget;
+        _warpCharging = charging;
+        _warpReady = ready;
+        _warpTransit = transit;
         QueueRedraw();
     }
 
@@ -207,6 +222,7 @@ public partial class HudOverlay : Control
         }
 
         DrawCombatBars(y);
+        DrawWarpChargeBar(size, y);
     }
 
     private void DrawHudBlock(Rect2 rect, Color fill)
@@ -236,6 +252,43 @@ public partial class HudOverlay : Control
         DrawRect(rect, new Color(0f, 0.04f, 0.06f, 0.82f), true);
         DrawRect(new Rect2(position, new Vector2(width * ratio, 5f)), color, true);
         DrawRect(rect, new Color(0.22f, 0.92f, 1f, 0.22f), false, 1f);
+    }
+
+    private void DrawWarpChargeBar(Vector2 size, float panelTop)
+    {
+        if (!_warpHasTarget && !_warpTransit)
+        {
+            return;
+        }
+
+        var font = GetThemeDefaultFont();
+        var width = Math.Clamp(size.X * 0.25f, 280f, 420f);
+        var position = new Vector2(size.X * 0.5f - width * 0.5f, panelTop + 17f);
+        var rect = new Rect2(position, new Vector2(width, 8f));
+        var color = _warpTransit
+            ? new Color(0.72f, 0.96f, 1f, 0.98f)
+            : _warpReady
+                ? new Color(1f, 0.78f, 0.28f, 0.96f)
+                : _warpCharging
+                    ? new Color(0.34f, 1f, 0.88f, 0.92f)
+                    : new Color(0.32f, 0.58f, 0.66f, 0.62f);
+
+        DrawRect(rect.Grow(3f), new Color(0f, 0.02f, 0.03f, 0.78f), true);
+        DrawRect(rect, new Color(0.01f, 0.10f, 0.14f, 0.88f), true);
+        DrawRect(new Rect2(rect.Position, new Vector2(rect.Size.X * _warpChargeRatio, rect.Size.Y)), color, true);
+        DrawRect(rect, new Color(0.24f, 0.95f, 1f, 0.32f), false, 1f);
+
+        var label = _warpTransit
+            ? "WARP TRANSIT"
+            : _warpReady
+                ? "WARP READY  B"
+                : _warpCharging
+                    ? "WARP CALIBRATING"
+                    : "WARP HOLD";
+        var percent = $"{_warpChargeRatio * 100f,3:0}%";
+        DrawString(font, PixelSnap(position + new Vector2(0f, -3f)), label, HorizontalAlignment.Left, width * 0.68f, 10, WithAlpha(color, 0.92f));
+        var percentWidth = font?.GetStringSize(percent, HorizontalAlignment.Left, -1f, 10).X ?? 28f;
+        DrawString(font, PixelSnap(position + new Vector2(width - percentWidth, -3f)), percent, HorizontalAlignment.Left, -1f, 10, WithAlpha(color, 0.92f));
     }
 
     private void DrawMinimap(Vector2 size)
@@ -604,6 +657,16 @@ public partial class HudOverlay : Control
     private static bool IsFinite(Vector2 value)
     {
         return float.IsFinite(value.X) && float.IsFinite(value.Y);
+    }
+
+    private static Vector2 PixelSnap(Vector2 point)
+    {
+        return new Vector2(MathF.Round(point.X), MathF.Round(point.Y));
+    }
+
+    private static Color WithAlpha(Color color, float alpha)
+    {
+        return new Color(color.R, color.G, color.B, Math.Clamp(alpha, 0f, 1f));
     }
 
     private static float Hash01(float value)

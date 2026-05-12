@@ -12,9 +12,11 @@ public enum ShipEffectQuality
 
 public partial class ShipView : Node2D
 {
+    private const string WarpChargeAuraShaderPath = "res://shaders/ship_warp_charge_aura.gdshader";
     private const float IdleRollRadians = 0.052f;
     private const float IdleHoverPixels = 1.6f;
     private const float RigWingBankOffset = 0f;
+    private const int ShaderTextureSize = 256;
 
     private static readonly EnginePort[] DefaultExhaustPorts =
     {
@@ -26,12 +28,15 @@ public partial class ShipView : Node2D
 
     private float _phase;
     private Sprite2D _glowSprite = null!;
+    private Polygon2D _warpChargeAura = null!;
     private Sprite2D _shipSprite = null!;
     private Sprite2D _leftWingRigSprite = null!;
     private Sprite2D _rightWingRigSprite = null!;
     private ShipIdleOverlay _idleOverlay = null!;
     private Texture2D? _pendingTexture;
     private ShipRigProfile _rigProfile = ShipRigProfile.Empty;
+    private ShaderMaterial? _warpChargeAuraMaterial;
+    private ImageTexture _shaderWhiteTexture = null!;
     private float _textureEffectScale = 1f;
     private readonly EnginePort[] _renderPorts = new EnginePort[4];
     private ShipEffectQuality _effectQuality = ShipEffectQuality.Full;
@@ -57,6 +62,8 @@ public partial class ShipView : Node2D
     public Vector2 HitboxLocalSize { get; set; } = new(84f, 84f);
     public Color EngineOuterColor { get; set; } = new(0.1f, 0.8f, 1f, 1f);
     public Color EngineCoreColor { get; set; } = new(0.75f, 1f, 1f, 1f);
+    public Color WarpOuterColor { get; set; } = new(0.16f, 0.72f, 1f, 1f);
+    public Color WarpCoreColor { get; set; } = new(0.86f, 1f, 1f, 1f);
     public float EngineEffectScale { get; set; } = 1f;
     public float EngineBubbleScale { get; set; } = 1f;
     public float EngineParticleDensity { get; set; } = 1f;
@@ -106,6 +113,25 @@ public partial class ShipView : Node2D
         };
         _glowSprite.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
+        _warpChargeAura = new Polygon2D
+        {
+            Antialiased = true,
+            Color = Colors.White,
+            Visible = false,
+            ZIndex = 1
+        };
+        var shaderImage = Image.CreateEmpty(ShaderTextureSize, ShaderTextureSize, false, Image.Format.Rgba8);
+        shaderImage.Fill(Colors.White);
+        _shaderWhiteTexture = ImageTexture.CreateFromImage(shaderImage);
+        _warpChargeAura.Texture = _shaderWhiteTexture;
+        var warpAuraShader = ResourceLoader.Load<Shader>(WarpChargeAuraShaderPath);
+        if (warpAuraShader is not null)
+        {
+            _warpChargeAuraMaterial = new ShaderMaterial { Shader = warpAuraShader };
+            _warpChargeAura.Material = _warpChargeAuraMaterial;
+        }
+        UpdateWarpChargeAuraGeometry();
+
         _shipSprite = new Sprite2D
         {
             Centered = true,
@@ -124,6 +150,7 @@ public partial class ShipView : Node2D
         };
 
         AddChild(_glowSprite);
+        AddChild(_warpChargeAura);
         AddChild(_leftWingRigSprite);
         AddChild(_rightWingRigSprite);
         AddChild(_shipSprite);
@@ -152,12 +179,14 @@ public partial class ShipView : Node2D
         _textureEffectScale = Math.Clamp(Math.Max(texture.GetWidth(), texture.GetHeight()) / 256f, 1f, 4f);
         _glowSprite.Modulate = WithAlpha(EngineOuterColor, 0.18f);
         UpdateRigSprites();
+        UpdateWarpChargeAuraGeometry();
     }
 
     public override void _Process(double delta)
     {
         _phase += (float)delta * 12f;
         ApplyIdleAnimation();
+        UpdateWarpChargeAura();
         _redrawAccumulator += (float)delta;
         if (ShouldRedrawEffects())
         {
@@ -441,10 +470,10 @@ public partial class ShipView : Node2D
 
         var bounds = HitboxLocalSize;
         var radius = Math.Clamp(Math.Max(bounds.X, bounds.Y) * 0.62f, 46f, 148f) * _textureEffectScale;
-        var color = Mix(EngineOuterColor, EngineCoreColor, 0.22f + charge * 0.34f);
-        var core = Mix(EngineCoreColor, Colors.White, transit > 0f ? 0.30f : 0.08f);
+        var color = Mix(WarpOuterColor, WarpCoreColor, 0.18f + charge * 0.30f);
+        var core = Mix(WarpOuterColor, WarpCoreColor, transit > 0f ? 0.40f : 0.28f);
         var pulse = 0.5f + 0.5f * MathF.Sin(_phase * (0.72f + charge * 0.32f));
-        var ringAlpha = (0.060f + charge * 0.115f + transit * 0.18f) * intensity;
+        var ringAlpha = (0.030f + charge * 0.060f + transit * 0.105f) * intensity;
         var spin = _phase * (0.24f + charge * 0.12f);
 
         DrawCircle(HitboxLocalCenter, radius * (0.92f + pulse * 0.05f), WithAlpha(color, ringAlpha * 0.11f));
@@ -464,7 +493,7 @@ public partial class ShipView : Node2D
 
         DrawWarpConduitPulses(charge, transit, intensity, color, core);
 
-        var particleCount = EffectQuality == ShipEffectQuality.Full ? 18 : 10;
+        var particleCount = EffectQuality == ShipEffectQuality.Full ? 10 : 6;
         for (var i = 0; i < particleCount; i++)
         {
             var h0 = Hash01(i * 19.73f + _idleSeed * 0.01f);
@@ -475,15 +504,91 @@ public partial class ShipView : Node2D
             var distance = radius * (1.18f - life * 0.58f);
             var position = HitboxLocalCenter + direction * distance;
             var tail = position + direction * (10f + charge * 18f) * (transit > 0f ? 1.8f : 1f);
-            var alpha = intensity * (1f - life) * (0.18f + h1 * 0.22f);
+            var alpha = intensity * (1f - life) * (0.10f + h1 * 0.14f);
             DrawLine(tail, position, WithAlpha(color, alpha), 0.8f + charge * 1.2f, true);
             DrawCircle(position, 1.2f + charge * 2.2f, WithAlpha(core, alpha * 0.86f));
         }
 
         if (charge >= 0.98f || transit > 0.01f)
         {
-            DrawArc(HitboxLocalCenter, radius * 1.08f, -spin * 1.4f, -spin * 1.4f + MathF.Tau * 0.72f, 72, WithAlpha(core, 0.18f + transit * 0.24f), 1.4f + transit * 1.8f, true);
+            DrawArc(HitboxLocalCenter, radius * 1.08f, -spin * 1.4f, -spin * 1.4f + MathF.Tau * 0.72f, 72, WithAlpha(core, 0.08f + transit * 0.14f), 1.1f + transit * 1.3f, true);
         }
+    }
+
+    private void UpdateWarpChargeAura()
+    {
+        if (_warpChargeAura is null)
+        {
+            return;
+        }
+
+        var charge = Math.Clamp(WarpChargeLevel, 0f, 1f);
+        var transit = Math.Clamp(WarpTransitLevel, 0f, 1f);
+        var intensity = Math.Max(charge * (WarpChargeActive ? 1f : 0.38f), transit);
+        var quality = EffectQuality switch
+        {
+            ShipEffectQuality.Full => 1f,
+            ShipEffectQuality.Balanced => 0.72f,
+            ShipEffectQuality.Minimal => 0.42f,
+            _ => 0f
+        };
+
+        intensity *= quality;
+        var material = _warpChargeAuraMaterial;
+        var visible = material is not null
+            && _shipSprite?.Texture is not null
+            && intensity > 0.01f;
+        _warpChargeAura.Visible = visible;
+        if (!visible)
+        {
+            return;
+        }
+
+        UpdateWarpChargeAuraGeometry();
+        _warpChargeAura.Position = HitboxLocalCenter + _idleVisualOffset;
+        _warpChargeAura.Rotation = _idleVisualRotation;
+        _warpChargeAura.Scale = _idleVisualScale;
+
+        var ready = charge >= 0.985f && WarpChargeActive ? 1f : 0f;
+        material!.SetShaderParameter("time_seconds", _phase / 12f);
+        material.SetShaderParameter("charge", charge);
+        material.SetShaderParameter("intensity", intensity);
+        material.SetShaderParameter("transit", transit);
+        material.SetShaderParameter("ready", ready);
+        material.SetShaderParameter("outer_color", WarpOuterColor);
+        material.SetShaderParameter("core_color", Mix(WarpOuterColor, WarpCoreColor, 0.30f + transit * 0.12f));
+    }
+
+    private void UpdateWarpChargeAuraGeometry()
+    {
+        if (_warpChargeAura is null)
+        {
+            return;
+        }
+
+        var halfSize = WarpChargeAuraHalfSize();
+        _warpChargeAura.Polygon = new[]
+        {
+            new Vector2(-halfSize.X, -halfSize.Y),
+            new Vector2(halfSize.X, -halfSize.Y),
+            new Vector2(halfSize.X, halfSize.Y),
+            new Vector2(-halfSize.X, halfSize.Y)
+        };
+        _warpChargeAura.UV = new[]
+        {
+            new Vector2(0f, 0f),
+            new Vector2(ShaderTextureSize, 0f),
+            new Vector2(ShaderTextureSize, ShaderTextureSize),
+            new Vector2(0f, ShaderTextureSize)
+        };
+    }
+
+    private Vector2 WarpChargeAuraHalfSize()
+    {
+        var baseSize = new Vector2(
+            Math.Clamp(HitboxLocalSize.X * 1.65f, 142f, 380f),
+            Math.Clamp(HitboxLocalSize.Y * 1.65f, 142f, 400f));
+        return baseSize * Math.Clamp(_textureEffectScale, 1f, 2.6f);
     }
 
     private void DrawWarpConduitPulses(float charge, float transit, float intensity, Color color, Color core)

@@ -210,6 +210,7 @@ public partial class GameRoot : Node2D
         RunAsteroidVfxSmokeTest();
         RunProjectileImpactVfxSmokeTest();
         RunShipVfxSmokeTest();
+        RunWarpChargeSmokeTest();
         RunWarpVfxSmokeTest();
         ConfigureVfxCapture();
         ConfigureFrameCapture();
@@ -1778,6 +1779,27 @@ public partial class GameRoot : Node2D
         GD.Print("Stress ship VFX: spawned per-ship cutout explosions for player and NPC samples.");
     }
 
+    private void RunWarpChargeSmokeTest()
+    {
+        if (!ReadBoolUserArg("--warp-charge-smoke"))
+        {
+            return;
+        }
+
+        var targetSystem = FindAlternateWarpTargetForSmoke();
+        if (targetSystem is null)
+        {
+            GD.Print("Warp charge smoke skipped: no alternate star system is available.");
+            return;
+        }
+
+        _warpTargetSystemId = targetSystem.Id;
+        _warpChargeSeconds = WarpCalibrationSeconds;
+        _hud.SetWarpTarget(targetSystem.DisplayName);
+        UpdateWarpDriveVisualState(PlayerShipFrom(_snapshot));
+        GD.Print($"Warp charge smoke: tuned to {targetSystem.DisplayName}.");
+    }
+
     private void RunWarpVfxSmokeTest()
     {
         if (!ReadBoolUserArg("--warp-vfx-smoke"))
@@ -1785,25 +1807,7 @@ public partial class GameRoot : Node2D
             return;
         }
 
-        EnsureGeneratedSystemsLoaded();
-        StarSystemDefinition? targetSystem = null;
-        for (var index = 0; index < _generatedSystems.Count; index++)
-        {
-            var entry = _generatedSystems[index];
-            if (SameSystemId(entry.Id, _currentSystem.Id))
-            {
-                continue;
-            }
-
-            targetSystem = StarSystemLoader.LoadSystem(entry.File);
-            break;
-        }
-
-        if (targetSystem is null && !SameSystemId(_currentSystem.Id, SolarSystem.Sol.Id))
-        {
-            targetSystem = SolarSystem.Sol;
-        }
-
+        var targetSystem = FindAlternateWarpTargetForSmoke();
         if (targetSystem is null)
         {
             GD.Print("Warp VFX smoke skipped: no alternate star system is available.");
@@ -1813,6 +1817,28 @@ public partial class GameRoot : Node2D
         _warpTargetSystemId = targetSystem.Id;
         _warpChargeSeconds = WarpCalibrationSeconds;
         TryStartWarpTransit();
+    }
+
+    private StarSystemDefinition? FindAlternateWarpTargetForSmoke()
+    {
+        EnsureGeneratedSystemsLoaded();
+        for (var index = 0; index < _generatedSystems.Count; index++)
+        {
+            var entry = _generatedSystems[index];
+            if (SameSystemId(entry.Id, _currentSystem.Id))
+            {
+                continue;
+            }
+
+            return StarSystemLoader.LoadSystem(entry.File);
+        }
+
+        if (!SameSystemId(_currentSystem.Id, SolarSystem.Sol.Id))
+        {
+            return SolarSystem.Sol;
+        }
+
+        return null;
     }
 
     private void PlaceStressPlayerIfRequested()
@@ -2634,6 +2660,8 @@ public partial class GameRoot : Node2D
         _shipView.EngineCoreColor = ShipCatalog.ThrustCoreColor(path);
         _selectedWarpOuterColor = ShipCatalog.WarpOuterColor(path);
         _selectedWarpCoreColor = ShipCatalog.WarpCoreColor(path);
+        _shipView.WarpOuterColor = _selectedWarpOuterColor;
+        _shipView.WarpCoreColor = _selectedWarpCoreColor;
         _shipView.EngineEffectScale = ShipCatalog.ThrustSizeMultiplier(path);
         _shipView.EngineBubbleScale = ShipCatalog.ThrustBubbleMultiplier(path);
         _shipView.EngineParticleDensity = ShipCatalog.ThrustParticleDensity(path);
@@ -2660,6 +2688,8 @@ public partial class GameRoot : Node2D
             Scale = new Vector2(profile.Scale, profile.Scale),
             EngineOuterColor = ShipCatalog.ThrustOuterColor(path),
             EngineCoreColor = ShipCatalog.ThrustCoreColor(path),
+            WarpOuterColor = ShipCatalog.WarpOuterColor(path),
+            WarpCoreColor = ShipCatalog.WarpCoreColor(path),
             EngineEffectScale = ShipCatalog.ThrustSizeMultiplier(path),
             EngineBubbleScale = ShipCatalog.ThrustBubbleMultiplier(path),
             EngineParticleDensity = ShipCatalog.ThrustParticleDensity(path),

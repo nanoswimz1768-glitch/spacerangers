@@ -854,6 +854,13 @@ Ship asset recenter/reimport follow-up 2026-05-12:
 - `2KlissanScout` now has one centered exhaust port at `x=0, y=262.3, radius=22` instead of four separate thrust ports.
 - Backup before this pass: `.tools/backups/ships_recenter_20260512_154410`.
 
+Import/cache correction 2026-05-12:
+
+- `tools/run_game.ps1` now rebuilds `game/SpaceManagersPrototype.sln` when C# source/project files are newer than `game/.godot/mono/temp/bin/Debug/SpaceManagersPrototype.dll`. Running the game from PowerShell is therefore self-refreshing for code changes instead of relying on a prior manual `dotnet build`.
+- `tools/run_game.ps1` now compares `game/assets/ships/*.png` MD5 hashes against Godot `.godot/imported/*.md5` source hashes and runs `Godot --headless --import --path game` before launching when the cache is stale. This avoids the failure mode where runtime draws an old imported ship texture with a refreshed `ships_manifest.json`, which visually offsets thrust ports and ship-bound VFX.
+- `ShipView.UpdateWarpChargeAura()` no longer offsets the aura sprite by `HitboxLocalCenter`. The aura uses the same texture, UVs, idle offset, rotation, and scale as the visible ship sprite, so the shader mask remains pixel-aligned with the hull even when the collision center is not exactly at texture center.
+- `--stress-autopilot` can now run without spawning enemies. This gives clean thrust/warp-charge review captures without shield hits or hostile projectiles covering the ship.
+
 ## Background
 
 Основной фон:

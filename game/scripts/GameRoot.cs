@@ -1650,7 +1650,8 @@ public partial class GameRoot : Node2D
     {
         var enemyCount = ReadIntUserArg("--stress-enemies", 0);
         var switchCount = ReadIntUserArg("--stress-system-switches", 0);
-        if (enemyCount <= 0 && switchCount <= 0)
+        _stressAutopilot = ReadBoolUserArg("--stress-autopilot");
+        if (enemyCount <= 0 && switchCount <= 0 && !_stressAutopilot)
         {
             PlaceStressPlayerIfRequested();
             return;
@@ -1659,7 +1660,6 @@ public partial class GameRoot : Node2D
         _simulation.PlayerGodMode = true;
         _stressModeActive = true;
         _stressQuitAfterSeconds = ReadFloatUserArg("--stress-seconds", 0f);
-        _stressAutopilot = ReadBoolUserArg("--stress-autopilot");
         _stressSystemSwitchesRemaining = Math.Max(0, switchCount);
         _stressSystemSwitchInterval = Math.Max(0.35, ReadFloatUserArg("--stress-system-switch-interval", 0.85f));
         _stressNextSystemSwitchAt = _stressSystemSwitchInterval;

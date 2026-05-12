@@ -482,7 +482,7 @@ public partial class ShipView : Node2D
         }
 
         var shipTexture = texture!;
-        _warpChargeAura.Position = HitboxLocalCenter + _idleVisualOffset;
+        _warpChargeAura.Position = _idleVisualOffset;
         _warpChargeAura.Rotation = _idleVisualRotation;
         _warpChargeAura.Scale = _idleVisualScale * (1.016f + charge * 0.010f + transit * 0.014f);
 

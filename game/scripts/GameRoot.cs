@@ -492,12 +492,13 @@ public partial class GameRoot : Node2D
             var pull = MathF.Pow(enter, 1.12f);
             var shipOffset = forward * (460f * pull);
             var scale = _selectedShipVisualScale * (1f - 0.42f * SmoothStep(0.40f, 1f, phase));
+            var stretch = SmoothStep(0.18f, 0.78f, phase) * (1f - SmoothStep(0.84f, 1f, phase));
             var alpha = 1f - SmoothStep(0.72f, 1f, phase) * 0.92f;
             var tunnelReach = 520f + SmoothStep(0.42f, 1f, phase) * 70f;
             mouthOffset = new Vector2(0f, -tunnelReach);
             return new WarpVisualState(
                 shipPosition + shipOffset,
-                new Vector2(scale, scale),
+                new Vector2(scale * (1f - stretch * 0.055f), scale * (1f + stretch * 0.18f)),
                 alpha,
                 shipPosition,
                 mouthOffset,
@@ -507,11 +508,12 @@ public partial class GameRoot : Node2D
         var exit = SmoothStep(0.06f, 0.90f, phase);
         var shipStartOffset = -forward * (460f * (1f - exit));
         var exitScale = _selectedShipVisualScale * (0.58f + 0.42f * exit);
+        var exitStretch = (1f - SmoothStep(0.62f, 1f, phase)) * SmoothStep(0.0f, 0.28f, phase);
         var exitAlpha = SmoothStep(0.02f, 0.30f, phase);
         mouthOffset = new Vector2(0f, -520f + SmoothStep(0.60f, 1f, phase) * 45f);
         return new WarpVisualState(
             shipPosition + shipStartOffset,
-            new Vector2(exitScale, exitScale),
+            new Vector2(exitScale * (1f - exitStretch * 0.045f), exitScale * (1f + exitStretch * 0.15f)),
             exitAlpha,
             shipPosition,
             mouthOffset,

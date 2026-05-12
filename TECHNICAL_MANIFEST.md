@@ -1452,6 +1452,13 @@ Warp VFX V4 shader-first notes:
 - Preview-before-import workflow lives in `res://scenes/WarpTunnelPreview.tscn`, with `WarpTunnelPreview.cs` showing a tunable shader tunnel plus ship sprite before further gameplay wiring.
 - New warp VFX work should prefer Godot shader/particle resources or generated preview assets first, then import into gameplay; avoid returning to large per-frame `_Draw()` tunnel construction.
 
+Warp VFX V5 polish notes:
+
+- `WarpTunnelLayer` now adds a fast inner star-streak layer (`res://shaders/warp_tunnel_stars.gdshader`) between the soft sleeve and bright filament strip, so the tunnel has more depth and speed parallax.
+- Entry/exit impact is handled by two world-space shockwave polygons using `res://shaders/warp_shockwave.gdshader`: one around the ship-side mouth and one around the far vortex. The rings are deliberately broken into arcs so they read as energy ripples, not a UI outline.
+- Ship transit scale is slightly non-uniform during warp entry/exit, giving a restrained speed-stretch without changing the source ship PNGs.
+- Keep future warp improvements shader-first and layer-based: add new tunnel/portal/particle materials rather than rebuilding the old draw-loop tunnel.
+
 ## Safe Change Checklist
 
 Перед финальным ответом после правок желательно:

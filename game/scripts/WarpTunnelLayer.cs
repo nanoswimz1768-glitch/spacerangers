@@ -4,17 +4,26 @@ namespace SpaceManagersPrototype;
 
 public partial class WarpTunnelLayer : Node2D
 {
+    private const int TextureUvMax = 256;
     private const string StripShaderPath = "res://shaders/warp_tunnel_strip.gdshader";
     private const string SheathShaderPath = "res://shaders/warp_tunnel_sheath.gdshader";
+    private const string StarsShaderPath = "res://shaders/warp_tunnel_stars.gdshader";
     private const string PortalShaderPath = "res://shaders/warp_portal_mouth.gdshader";
+    private const string ShockwaveShaderPath = "res://shaders/warp_shockwave.gdshader";
 
     private Polygon2D _sheath = null!;
+    private Polygon2D _stars = null!;
     private Polygon2D _strip = null!;
     private Polygon2D _mouth = null!;
+    private Polygon2D _shipShockwave = null!;
+    private Polygon2D _mouthShockwave = null!;
     private ImageTexture _whiteTexture = null!;
     private ShaderMaterial? _sheathMaterial;
+    private ShaderMaterial? _starsMaterial;
     private ShaderMaterial? _stripMaterial;
     private ShaderMaterial? _mouthMaterial;
+    private ShaderMaterial? _shipShockwaveMaterial;
+    private ShaderMaterial? _mouthShockwaveMaterial;
     private float _phase;
     private float _progress;
     private float _fade = 1f;
@@ -45,30 +54,64 @@ public partial class WarpTunnelLayer : Node2D
         {
             Antialiased = true,
             Color = Colors.White,
-            ZIndex = 1
+            ZIndex = 2
         };
         AddChild(_strip);
 
-        _mouth = new Polygon2D
+        _stars = new Polygon2D
         {
             Antialiased = true,
             Color = Colors.White,
             ZIndex = 3
         };
+        AddChild(_stars);
+
+        _mouth = new Polygon2D
+        {
+            Antialiased = true,
+            Color = Colors.White,
+            ZIndex = 4
+        };
         AddChild(_mouth);
 
-        var image = Image.CreateEmpty(256, 256, false, Image.Format.Rgba8);
+        _shipShockwave = new Polygon2D
+        {
+            Antialiased = true,
+            Color = Colors.White,
+            ZIndex = 5
+        };
+        AddChild(_shipShockwave);
+
+        _mouthShockwave = new Polygon2D
+        {
+            Antialiased = true,
+            Color = Colors.White,
+            ZIndex = 6
+        };
+        AddChild(_mouthShockwave);
+
+        var image = Image.CreateEmpty(TextureUvMax, TextureUvMax, false, Image.Format.Rgba8);
         image.Fill(Colors.White);
         _whiteTexture = ImageTexture.CreateFromImage(image);
         _sheath.Texture = _whiteTexture;
+        _stars.Texture = _whiteTexture;
         _strip.Texture = _whiteTexture;
         _mouth.Texture = _whiteTexture;
+        _shipShockwave.Texture = _whiteTexture;
+        _mouthShockwave.Texture = _whiteTexture;
 
         var sheathShader = ResourceLoader.Load<Shader>(SheathShaderPath);
         if (sheathShader is not null)
         {
             _sheathMaterial = new ShaderMaterial { Shader = sheathShader };
             _sheath.Material = _sheathMaterial;
+        }
+
+        var starsShader = ResourceLoader.Load<Shader>(StarsShaderPath);
+        if (starsShader is not null)
+        {
+            _starsMaterial = new ShaderMaterial { Shader = starsShader };
+            _stars.Material = _starsMaterial;
         }
 
         var stripShader = ResourceLoader.Load<Shader>(StripShaderPath);
@@ -83,6 +126,15 @@ public partial class WarpTunnelLayer : Node2D
         {
             _mouthMaterial = new ShaderMaterial { Shader = portalShader };
             _mouth.Material = _mouthMaterial;
+        }
+
+        var shockwaveShader = ResourceLoader.Load<Shader>(ShockwaveShaderPath);
+        if (shockwaveShader is not null)
+        {
+            _shipShockwaveMaterial = new ShaderMaterial { Shader = shockwaveShader };
+            _shipShockwave.Material = _shipShockwaveMaterial;
+            _mouthShockwaveMaterial = new ShaderMaterial { Shader = shockwaveShader };
+            _mouthShockwave.Material = _mouthShockwaveMaterial;
         }
 
         UpdateGeometry();
@@ -188,7 +240,6 @@ public partial class WarpTunnelLayer : Node2D
         var start = direction * 38f;
         var portalCenter = end;
 
-        const int textureUvMax = 256;
         const int stripSegments = 14;
         var stripPolygon = new Vector2[(stripSegments + 1) * 2];
         var stripUv = new Vector2[(stripSegments + 1) * 2];
@@ -202,43 +253,36 @@ public partial class WarpTunnelLayer : Node2D
             width *= 0.92f + MathF.Sin(t * MathF.PI) * 0.12f;
 
             stripPolygon[i] = center - right * width * 0.5f;
-            stripUv[i] = new Vector2(0f, t * textureUvMax);
+            stripUv[i] = new Vector2(0f, t * TextureUvMax);
             var rightIndex = stripPolygon.Length - 1 - i;
             stripPolygon[rightIndex] = center + right * width * 0.5f;
-            stripUv[rightIndex] = new Vector2(textureUvMax, t * textureUvMax);
+            stripUv[rightIndex] = new Vector2(TextureUvMax, t * TextureUvMax);
         }
 
         _strip.Polygon = stripPolygon;
         _strip.UV = stripUv;
         _sheath.Polygon = stripPolygon;
         _sheath.UV = stripUv;
+        _stars.Polygon = stripPolygon;
+        _stars.UV = stripUv;
 
         var radius = Math.Clamp(farWidth * 0.56f, 210f, 310f);
-        const int mouthSegments = 72;
-        var mouthPolygon = new Vector2[mouthSegments];
-        var mouthUv = new Vector2[mouthSegments];
-        for (var i = 0; i < mouthSegments; i++)
-        {
-            var angle = i / (float)mouthSegments * MathF.Tau;
-            var unit = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-            mouthPolygon[i] = portalCenter + unit * radius;
-            mouthUv[i] = new Vector2(
-                (0.5f + unit.X * 0.5f) * textureUvMax,
-                (0.5f + unit.Y * 0.5f) * textureUvMax);
-        }
-
-        _mouth.Polygon = mouthPolygon;
-        _mouth.UV = mouthUv;
+        SetCirclePolygon(_mouth, portalCenter, radius, 72);
+        SetCirclePolygon(_shipShockwave, Vector2.Zero, Math.Clamp(nearWidth * 1.28f, 180f, 260f), 64);
+        SetCirclePolygon(_mouthShockwave, portalCenter, Math.Clamp(radius * 1.22f, 260f, 390f), 80);
     }
 
     private void ApplyMaterial()
     {
-        ApplyMaterial(_stripMaterial);
-        ApplyMaterial(_sheathMaterial);
-        ApplyMaterial(_mouthMaterial);
+        ApplyCommonMaterial(_sheathMaterial);
+        ApplyCommonMaterial(_stripMaterial);
+        ApplyCommonMaterial(_starsMaterial);
+        ApplyCommonMaterial(_mouthMaterial);
+        ApplyShockwaveMaterial(_shipShockwaveMaterial, 0f);
+        ApplyShockwaveMaterial(_mouthShockwaveMaterial, 1f);
     }
 
-    private void ApplyMaterial(ShaderMaterial? material)
+    private void ApplyCommonMaterial(ShaderMaterial? material)
     {
         if (material is null)
         {
@@ -252,6 +296,30 @@ public partial class WarpTunnelLayer : Node2D
         material.SetShaderParameter("outer_color", _outerColor);
         material.SetShaderParameter("core_color", _coreColor);
         material.SetShaderParameter("secondary_color", SecondaryWarpColor(_outerColor));
+    }
+
+    private void ApplyShockwaveMaterial(ShaderMaterial? material, float shockKind)
+    {
+        ApplyCommonMaterial(material);
+        material?.SetShaderParameter("shock_kind", shockKind);
+    }
+
+    private static void SetCirclePolygon(Polygon2D polygon, Vector2 center, float radius, int segments)
+    {
+        var points = new Vector2[segments];
+        var uvs = new Vector2[segments];
+        for (var i = 0; i < segments; i++)
+        {
+            var angle = i / (float)segments * MathF.Tau;
+            var unit = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            points[i] = center + unit * radius;
+            uvs[i] = new Vector2(
+                (0.5f + unit.X * 0.5f) * TextureUvMax,
+                (0.5f + unit.Y * 0.5f) * TextureUvMax);
+        }
+
+        polygon.Polygon = points;
+        polygon.UV = uvs;
     }
 
     private static Color Saturated(Color color)

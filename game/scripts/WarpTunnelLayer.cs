@@ -9,19 +9,28 @@ public partial class WarpTunnelLayer : Node2D
     private const string SheathShaderPath = "res://shaders/warp_tunnel_sheath.gdshader";
     private const string StarsShaderPath = "res://shaders/warp_tunnel_stars.gdshader";
     private const string PortalShaderPath = "res://shaders/warp_portal_mouth.gdshader";
+    private const string LensShaderPath = "res://shaders/warp_portal_lens.gdshader";
+    private const string ApertureShaderPath = "res://shaders/warp_portal_aperture.gdshader";
+    private const string ResidualShaderPath = "res://shaders/warp_residual_rift.gdshader";
     private const string ShockwaveShaderPath = "res://shaders/warp_shockwave.gdshader";
 
+    private Polygon2D _lens = null!;
     private Polygon2D _sheath = null!;
     private Polygon2D _stars = null!;
     private Polygon2D _strip = null!;
     private Polygon2D _mouth = null!;
+    private Polygon2D _aperture = null!;
+    private Polygon2D _residualRift = null!;
     private Polygon2D _shipShockwave = null!;
     private Polygon2D _mouthShockwave = null!;
     private ImageTexture _whiteTexture = null!;
+    private ShaderMaterial? _lensMaterial;
     private ShaderMaterial? _sheathMaterial;
     private ShaderMaterial? _starsMaterial;
     private ShaderMaterial? _stripMaterial;
     private ShaderMaterial? _mouthMaterial;
+    private ShaderMaterial? _apertureMaterial;
+    private ShaderMaterial? _residualRiftMaterial;
     private ShaderMaterial? _shipShockwaveMaterial;
     private ShaderMaterial? _mouthShockwaveMaterial;
     private float _phase;
@@ -41,6 +50,14 @@ public partial class WarpTunnelLayer : Node2D
     {
         ZIndex = 14;
         Visible = false;
+
+        _lens = new Polygon2D
+        {
+            Antialiased = true,
+            Color = Colors.White,
+            ZIndex = -1
+        };
+        AddChild(_lens);
 
         _sheath = new Polygon2D
         {
@@ -74,11 +91,27 @@ public partial class WarpTunnelLayer : Node2D
         };
         AddChild(_mouth);
 
+        _aperture = new Polygon2D
+        {
+            Antialiased = true,
+            Color = Colors.White,
+            ZIndex = 7
+        };
+        AddChild(_aperture);
+
+        _residualRift = new Polygon2D
+        {
+            Antialiased = true,
+            Color = Colors.White,
+            ZIndex = 8
+        };
+        AddChild(_residualRift);
+
         _shipShockwave = new Polygon2D
         {
             Antialiased = true,
             Color = Colors.White,
-            ZIndex = 5
+            ZIndex = 9
         };
         AddChild(_shipShockwave);
 
@@ -86,19 +119,29 @@ public partial class WarpTunnelLayer : Node2D
         {
             Antialiased = true,
             Color = Colors.White,
-            ZIndex = 6
+            ZIndex = 10
         };
         AddChild(_mouthShockwave);
 
         var image = Image.CreateEmpty(TextureUvMax, TextureUvMax, false, Image.Format.Rgba8);
         image.Fill(Colors.White);
         _whiteTexture = ImageTexture.CreateFromImage(image);
+        _lens.Texture = _whiteTexture;
         _sheath.Texture = _whiteTexture;
         _stars.Texture = _whiteTexture;
         _strip.Texture = _whiteTexture;
         _mouth.Texture = _whiteTexture;
+        _aperture.Texture = _whiteTexture;
+        _residualRift.Texture = _whiteTexture;
         _shipShockwave.Texture = _whiteTexture;
         _mouthShockwave.Texture = _whiteTexture;
+
+        var lensShader = ResourceLoader.Load<Shader>(LensShaderPath);
+        if (lensShader is not null)
+        {
+            _lensMaterial = new ShaderMaterial { Shader = lensShader };
+            _lens.Material = _lensMaterial;
+        }
 
         var sheathShader = ResourceLoader.Load<Shader>(SheathShaderPath);
         if (sheathShader is not null)
@@ -126,6 +169,20 @@ public partial class WarpTunnelLayer : Node2D
         {
             _mouthMaterial = new ShaderMaterial { Shader = portalShader };
             _mouth.Material = _mouthMaterial;
+        }
+
+        var apertureShader = ResourceLoader.Load<Shader>(ApertureShaderPath);
+        if (apertureShader is not null)
+        {
+            _apertureMaterial = new ShaderMaterial { Shader = apertureShader };
+            _aperture.Material = _apertureMaterial;
+        }
+
+        var residualShader = ResourceLoader.Load<Shader>(ResidualShaderPath);
+        if (residualShader is not null)
+        {
+            _residualRiftMaterial = new ShaderMaterial { Shader = residualShader };
+            _residualRift.Material = _residualRiftMaterial;
         }
 
         var shockwaveShader = ResourceLoader.Load<Shader>(ShockwaveShaderPath);
@@ -267,17 +324,23 @@ public partial class WarpTunnelLayer : Node2D
         _stars.UV = stripUv;
 
         var radius = Math.Clamp(farWidth * 0.56f, 210f, 310f);
+        SetCirclePolygon(_lens, portalCenter, Math.Clamp(radius * 1.72f, 390f, 560f), 96);
         SetCirclePolygon(_mouth, portalCenter, radius, 72);
+        SetCirclePolygon(_aperture, portalCenter, Math.Clamp(radius * 0.88f, 190f, 290f), 72);
+        SetCirclePolygon(_residualRift, portalCenter, Math.Clamp(radius * 0.76f, 170f, 250f), 72);
         SetCirclePolygon(_shipShockwave, Vector2.Zero, Math.Clamp(nearWidth * 1.28f, 180f, 260f), 64);
         SetCirclePolygon(_mouthShockwave, portalCenter, Math.Clamp(radius * 1.22f, 260f, 390f), 80);
     }
 
     private void ApplyMaterial()
     {
+        ApplyCommonMaterial(_lensMaterial);
         ApplyCommonMaterial(_sheathMaterial);
         ApplyCommonMaterial(_stripMaterial);
         ApplyCommonMaterial(_starsMaterial);
         ApplyCommonMaterial(_mouthMaterial);
+        ApplyCommonMaterial(_apertureMaterial);
+        ApplyCommonMaterial(_residualRiftMaterial);
         ApplyShockwaveMaterial(_shipShockwaveMaterial, 0f);
         ApplyShockwaveMaterial(_mouthShockwaveMaterial, 1f);
     }
@@ -296,6 +359,7 @@ public partial class WarpTunnelLayer : Node2D
         material.SetShaderParameter("outer_color", _outerColor);
         material.SetShaderParameter("core_color", _coreColor);
         material.SetShaderParameter("secondary_color", SecondaryWarpColor(_outerColor));
+        material.SetShaderParameter("residual_level", _residualActive ? 1f : 0f);
     }
 
     private void ApplyShockwaveMaterial(ShaderMaterial? material, float shockKind)

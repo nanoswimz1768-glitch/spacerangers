@@ -454,19 +454,62 @@ public partial class GameRoot : Node2D
         _reticle.Position = _latestCommand.AimWorld.ToGodot();
         _reticle.Mode = ship.Mode;
 
+        var cameraPosition = shipPosition + WarpCameraOffset();
+        var cameraZoom = WarpCameraZoom();
         if (UseCameraFollowSmoothing)
         {
             var cameraBlend = delta <= 0.0 ? 1f : 1f - MathF.Exp(-CameraFollowSharpness * (float)delta);
-            _camera.Position = _camera.Position.Lerp(shipPosition, cameraBlend);
+            _camera.Position = _camera.Position.Lerp(cameraPosition, cameraBlend);
         }
         else
         {
-            _camera.Position = shipPosition;
+            _camera.Position = cameraPosition;
         }
 
+        _camera.Zoom = new Vector2(cameraZoom, cameraZoom);
         _background.SetVisualTime(systemTimeSeconds);
         _enemyStatusLayer.SetState(visualSnapshot.Ships, _simulation.PlayerShipId, visibleWorldRect, _statusBarEnemyIds);
         _hud.SetState(visualSnapshot, _simulation.PlayerShipId, _latestCommand.AimWorld, _selectedShipName, _simulation.PlayerGodMode, systemTimeSeconds);
+    }
+
+    private Vector2 WarpCameraOffset()
+    {
+        if (!_warpInTransit)
+        {
+            return Vector2.Zero;
+        }
+
+        var phase = CurrentWarpPhase();
+        var impulse = WarpCameraImpulse(phase);
+        var angle = _warpTransitElapsed * 23.0f;
+        return new Vector2(MathF.Sin(angle * 1.31f), MathF.Cos(angle * 1.73f)) * (3.8f * impulse);
+    }
+
+    private float WarpCameraZoom()
+    {
+        const float baseZoom = 0.6f;
+        if (!_warpInTransit)
+        {
+            return baseZoom;
+        }
+
+        return baseZoom * (1f + WarpCameraImpulse(CurrentWarpPhase()) * 0.026f);
+    }
+
+    private float CurrentWarpPhase()
+    {
+        var halfTime = Math.Max(0.001f, WarpTransitSeconds * 0.5f);
+        var phaseElapsed = _warpTransitSwitched
+            ? _warpTransitElapsed - halfTime
+            : _warpTransitElapsed;
+        return Math.Clamp(phaseElapsed / halfTime, 0f, 1f);
+    }
+
+    private static float WarpCameraImpulse(float phase)
+    {
+        var startHit = 1f - SmoothStep(0.00f, 0.22f, phase);
+        var portalHit = SmoothStep(0.66f, 0.92f, phase) * (1f - SmoothStep(0.92f, 1.0f, phase));
+        return Math.Clamp(Math.Max(startHit * 0.62f, portalHit), 0f, 1f);
     }
 
     private WarpVisualState BuildWarpVisualState(Vector2 shipPosition, float shipRotation)
@@ -2061,7 +2104,7 @@ public partial class GameRoot : Node2D
             return;
         }
 
-        var captureTimes = new[] { 0.45, 1.10 };
+        var captureTimes = new[] { 0.45, 1.10, 1.38, 1.92, 3.08, 3.55 };
         _frameCaptureElapsed += delta;
         while (_frameCaptureIndex < captureTimes.Length && _frameCaptureElapsed >= captureTimes[_frameCaptureIndex])
         {

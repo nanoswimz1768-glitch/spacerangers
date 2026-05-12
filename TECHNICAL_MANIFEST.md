@@ -1459,6 +1459,15 @@ Warp VFX V5 polish notes:
 - Ship transit scale is slightly non-uniform during warp entry/exit, giving a restrained speed-stretch without changing the source ship PNGs.
 - Keep future warp improvements shader-first and layer-based: add new tunnel/portal/particle materials rather than rebuilding the old draw-loop tunnel.
 
+Warp VFX V6 cinematic notes:
+
+- No audio is wired for this pass by user request; all timing polish is visual only.
+- `WarpTunnelLayer` adds local portal lensing (`res://shaders/warp_portal_lens.gdshader`) around the vortex using screen texture sampling, so background space bends subtly into the mouth.
+- `res://shaders/warp_portal_aperture.gdshader` draws a dark broken aperture over the portal during entry/exit, making the ship feel partially swallowed by the tunnel instead of only fading.
+- `res://shaders/warp_residual_rift.gdshader` adds a fading rift after arrival, so the exit tunnel collapses behind the ship for a short tail.
+- Warp transit applies a very small camera impulse/zoom during entry and exit. Keep it restrained; it is there to sell force, not to shake gameplay readability.
+- Debug frame capture now samples six warp moments, including post-arrival residual, for easier VFX review.
+
 ## Safe Change Checklist
 
 Перед финальным ответом после правок желательно:

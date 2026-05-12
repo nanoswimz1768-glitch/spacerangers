@@ -1470,8 +1470,9 @@ Warp VFX V6 cinematic notes:
 
 Ship warp charge shader notes:
 
-- `ShipView` now uses `res://shaders/ship_warp_charge_aura.gdshader` for the ship-local warp calibration/ready field. The old `_Draw()` rings remain only as a reduced support layer for conduit pulses and tiny particles.
-- The shader draws race-colored broken spiral filaments, a nose-facing charge stream, sparks, scan bands, and a ready-state energy knot around the player ship without changing the source ship PNGs.
+- `ShipView` now uses `res://shaders/ship_warp_charge_aura.gdshader` for the ship-local warp calibration/ready field. It is a Godot CanvasItem shader on a duplicate `Sprite2D` using the same ship PNG, not a C# `_Draw()` sphere/ring layer.
+- The shader samples the ship texture alpha and neighboring pixels to detect the real silhouette, then draws a restrained race-colored rim, surface shimmer, tiny sparks, and weak nose-biased pulses that follow the hull.
+- The old C# warp charge ring/conduit renderer was removed from the active draw path so the charge reads as energy over the ship geometry instead of a black-hole-like object centered on the ship.
 - `GameRoot` sends `ShipCatalog.WarpOuterColor()` / `ShipCatalog.WarpCoreColor()` into `ShipView`, so ship charging uses the same race warp palette as the tunnel instead of normal engine thrust colors.
 - `--warp-charge-smoke` is a debug review mode that tunes the drive to an alternate system and holds the ship at 100% charge without starting transit; use it with `--capture-frame-dir` to inspect the ship-only charge effect.
 

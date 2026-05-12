@@ -16,7 +16,6 @@ public partial class ShipView : Node2D
     private const float IdleRollRadians = 0.052f;
     private const float IdleHoverPixels = 1.6f;
     private const float RigWingBankOffset = 0f;
-    private const int ShaderTextureSize = 256;
 
     private static readonly EnginePort[] DefaultExhaustPorts =
     {
@@ -28,7 +27,7 @@ public partial class ShipView : Node2D
 
     private float _phase;
     private Sprite2D _glowSprite = null!;
-    private Polygon2D _warpChargeAura = null!;
+    private Sprite2D _warpChargeAura = null!;
     private Sprite2D _shipSprite = null!;
     private Sprite2D _leftWingRigSprite = null!;
     private Sprite2D _rightWingRigSprite = null!;
@@ -36,7 +35,6 @@ public partial class ShipView : Node2D
     private Texture2D? _pendingTexture;
     private ShipRigProfile _rigProfile = ShipRigProfile.Empty;
     private ShaderMaterial? _warpChargeAuraMaterial;
-    private ImageTexture _shaderWhiteTexture = null!;
     private float _textureEffectScale = 1f;
     private readonly EnginePort[] _renderPorts = new EnginePort[4];
     private ShipEffectQuality _effectQuality = ShipEffectQuality.Full;
@@ -113,24 +111,20 @@ public partial class ShipView : Node2D
         };
         _glowSprite.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
 
-        _warpChargeAura = new Polygon2D
+        _warpChargeAura = new Sprite2D
         {
-            Antialiased = true,
-            Color = Colors.White,
+            Centered = true,
+            Modulate = Colors.White,
             Visible = false,
-            ZIndex = 1
+            ZIndex = 2
         };
-        var shaderImage = Image.CreateEmpty(ShaderTextureSize, ShaderTextureSize, false, Image.Format.Rgba8);
-        shaderImage.Fill(Colors.White);
-        _shaderWhiteTexture = ImageTexture.CreateFromImage(shaderImage);
-        _warpChargeAura.Texture = _shaderWhiteTexture;
+        _warpChargeAura.TextureFilter = TextureFilterEnum.LinearWithMipmaps;
         var warpAuraShader = ResourceLoader.Load<Shader>(WarpChargeAuraShaderPath);
         if (warpAuraShader is not null)
         {
             _warpChargeAuraMaterial = new ShaderMaterial { Shader = warpAuraShader };
             _warpChargeAura.Material = _warpChargeAuraMaterial;
         }
-        UpdateWarpChargeAuraGeometry();
 
         _shipSprite = new Sprite2D
         {
@@ -174,12 +168,12 @@ public partial class ShipView : Node2D
 
         _shipSprite.Texture = texture;
         _glowSprite.Texture = texture;
+        _warpChargeAura.Texture = texture;
         _leftWingRigSprite.Texture = texture;
         _rightWingRigSprite.Texture = texture;
         _textureEffectScale = Math.Clamp(Math.Max(texture.GetWidth(), texture.GetHeight()) / 256f, 1f, 4f);
         _glowSprite.Modulate = WithAlpha(EngineOuterColor, 0.18f);
         UpdateRigSprites();
-        UpdateWarpChargeAuraGeometry();
     }
 
     public override void _Process(double delta)
@@ -202,7 +196,6 @@ public partial class ShipView : Node2D
         {
             DrawSetTransform(_idleVisualOffset, _idleVisualRotation, _idleVisualScale);
             DrawEngineGlow();
-            DrawWarpChargeField();
             if (EffectQuality == ShipEffectQuality.Full || (EffectQuality == ShipEffectQuality.Balanced && IsFiring))
             {
                 DrawTurretCue();
@@ -458,63 +451,6 @@ public partial class ShipView : Node2D
         }
     }
 
-    private void DrawWarpChargeField()
-    {
-        var charge = Math.Clamp(WarpChargeLevel, 0f, 1f);
-        var transit = Math.Clamp(WarpTransitLevel, 0f, 1f);
-        var intensity = Math.Max(charge * (WarpChargeActive ? 1f : 0.38f), transit);
-        if (intensity <= 0.01f)
-        {
-            return;
-        }
-
-        var bounds = HitboxLocalSize;
-        var radius = Math.Clamp(Math.Max(bounds.X, bounds.Y) * 0.62f, 46f, 148f) * _textureEffectScale;
-        var color = Mix(WarpOuterColor, WarpCoreColor, 0.18f + charge * 0.30f);
-        var core = Mix(WarpOuterColor, WarpCoreColor, transit > 0f ? 0.40f : 0.28f);
-        var pulse = 0.5f + 0.5f * MathF.Sin(_phase * (0.72f + charge * 0.32f));
-        var ringAlpha = (0.030f + charge * 0.060f + transit * 0.105f) * intensity;
-        var spin = _phase * (0.24f + charge * 0.12f);
-
-        DrawCircle(HitboxLocalCenter, radius * (0.92f + pulse * 0.05f), WithAlpha(color, ringAlpha * 0.11f));
-        for (var i = 0; i < 4; i++)
-        {
-            var start = spin + i * MathF.Tau / 4f;
-            DrawArc(
-                HitboxLocalCenter,
-                radius * (0.78f + i * 0.075f),
-                start,
-                start + MathF.Tau * (0.10f + charge * 0.035f),
-                22,
-                WithAlpha(color, ringAlpha),
-                1.0f + charge * 1.1f + transit * 1.4f,
-                true);
-        }
-
-        DrawWarpConduitPulses(charge, transit, intensity, color, core);
-
-        var particleCount = EffectQuality == ShipEffectQuality.Full ? 10 : 6;
-        for (var i = 0; i < particleCount; i++)
-        {
-            var h0 = Hash01(i * 19.73f + _idleSeed * 0.01f);
-            var h1 = Hash01(i * 37.11f + 4.7f);
-            var life = Fract(h0 + _phase * (0.035f + charge * 0.026f + transit * 0.045f));
-            var angle = h1 * MathF.Tau + _phase * 0.06f;
-            var direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-            var distance = radius * (1.18f - life * 0.58f);
-            var position = HitboxLocalCenter + direction * distance;
-            var tail = position + direction * (10f + charge * 18f) * (transit > 0f ? 1.8f : 1f);
-            var alpha = intensity * (1f - life) * (0.10f + h1 * 0.14f);
-            DrawLine(tail, position, WithAlpha(color, alpha), 0.8f + charge * 1.2f, true);
-            DrawCircle(position, 1.2f + charge * 2.2f, WithAlpha(core, alpha * 0.86f));
-        }
-
-        if (charge >= 0.98f || transit > 0.01f)
-        {
-            DrawArc(HitboxLocalCenter, radius * 1.08f, -spin * 1.4f, -spin * 1.4f + MathF.Tau * 0.72f, 72, WithAlpha(core, 0.08f + transit * 0.14f), 1.1f + transit * 1.3f, true);
-        }
-    }
-
     private void UpdateWarpChargeAura()
     {
         if (_warpChargeAura is null)
@@ -534,9 +470,10 @@ public partial class ShipView : Node2D
         };
 
         intensity *= quality;
+        var texture = _shipSprite?.Texture;
         var material = _warpChargeAuraMaterial;
         var visible = material is not null
-            && _shipSprite?.Texture is not null
+            && texture is not null
             && intensity > 0.01f;
         _warpChargeAura.Visible = visible;
         if (!visible)
@@ -544,10 +481,10 @@ public partial class ShipView : Node2D
             return;
         }
 
-        UpdateWarpChargeAuraGeometry();
+        var shipTexture = texture!;
         _warpChargeAura.Position = HitboxLocalCenter + _idleVisualOffset;
         _warpChargeAura.Rotation = _idleVisualRotation;
-        _warpChargeAura.Scale = _idleVisualScale;
+        _warpChargeAura.Scale = _idleVisualScale * (1.016f + charge * 0.010f + transit * 0.014f);
 
         var ready = charge >= 0.985f && WarpChargeActive ? 1f : 0f;
         material!.SetShaderParameter("time_seconds", _phase / 12f);
@@ -555,106 +492,12 @@ public partial class ShipView : Node2D
         material.SetShaderParameter("intensity", intensity);
         material.SetShaderParameter("transit", transit);
         material.SetShaderParameter("ready", ready);
+        material.SetShaderParameter("ship_texture", shipTexture);
+        material.SetShaderParameter(
+            "ship_texture_pixel_size",
+            new Vector2(1f / Math.Max(1f, shipTexture.GetWidth()), 1f / Math.Max(1f, shipTexture.GetHeight())));
         material.SetShaderParameter("outer_color", WarpOuterColor);
         material.SetShaderParameter("core_color", Mix(WarpOuterColor, WarpCoreColor, 0.30f + transit * 0.12f));
-    }
-
-    private void UpdateWarpChargeAuraGeometry()
-    {
-        if (_warpChargeAura is null)
-        {
-            return;
-        }
-
-        var halfSize = WarpChargeAuraHalfSize();
-        _warpChargeAura.Polygon = new[]
-        {
-            new Vector2(-halfSize.X, -halfSize.Y),
-            new Vector2(halfSize.X, -halfSize.Y),
-            new Vector2(halfSize.X, halfSize.Y),
-            new Vector2(-halfSize.X, halfSize.Y)
-        };
-        _warpChargeAura.UV = new[]
-        {
-            new Vector2(0f, 0f),
-            new Vector2(ShaderTextureSize, 0f),
-            new Vector2(ShaderTextureSize, ShaderTextureSize),
-            new Vector2(0f, ShaderTextureSize)
-        };
-    }
-
-    private Vector2 WarpChargeAuraHalfSize()
-    {
-        var baseSize = new Vector2(
-            Math.Clamp(HitboxLocalSize.X * 1.65f, 142f, 380f),
-            Math.Clamp(HitboxLocalSize.Y * 1.65f, 142f, 400f));
-        return baseSize * Math.Clamp(_textureEffectScale, 1f, 2.6f);
-    }
-
-    private void DrawWarpConduitPulses(float charge, float transit, float intensity, Color color, Color core)
-    {
-        var half = HitboxLocalSize * 0.5f;
-        var coreAnchor = _rigProfile.HasRegions ? _rigProfile.CoreAnchor : HitboxLocalCenter + new Vector2(0f, -half.Y * 0.06f);
-        var nose = _rigProfile.HasRegions ? _rigProfile.NoseAnchor : HitboxLocalCenter + new Vector2(0f, -half.Y * 0.76f);
-        var leftRoot = _rigProfile.HasRegions ? _rigProfile.LeftWingRoot : HitboxLocalCenter + new Vector2(-half.X * 0.34f, -half.Y * 0.06f);
-        var rightRoot = _rigProfile.HasRegions ? _rigProfile.RightWingRoot : HitboxLocalCenter + new Vector2(half.X * 0.34f, -half.Y * 0.06f);
-        var leftTip = _rigProfile.HasRegions ? _rigProfile.LeftWingTip : HitboxLocalCenter + new Vector2(-half.X * 0.82f, -half.Y * 0.02f);
-        var rightTip = _rigProfile.HasRegions ? _rigProfile.RightWingTip : HitboxLocalCenter + new Vector2(half.X * 0.82f, -half.Y * 0.02f);
-
-        DrawWarpPulsePath(coreAnchor, nose, 0.11f, charge, transit, intensity, color, core, 1.20f);
-        DrawWarpPulsePath(leftRoot, coreAnchor, 0.29f, charge, transit, intensity, color, core, 0.78f);
-        DrawWarpPulsePath(rightRoot, coreAnchor, 0.47f, charge, transit, intensity, color, core, 0.78f);
-        DrawWarpPulsePath(leftTip, leftRoot, 0.63f, charge, transit, intensity, color, core, 0.54f);
-        DrawWarpPulsePath(rightTip, rightRoot, 0.79f, charge, transit, intensity, color, core, 0.54f);
-
-        var ports = _rigProfile.EnginePorts.Length > 0 ? _rigProfile.EnginePorts : DefaultExhaustPorts;
-        var portCount = Math.Min(ports.Length, DetailCount(4, 3, 2));
-        for (var i = 0; i < portCount; i++)
-        {
-            DrawWarpPulsePath(ports[i].Position, coreAnchor, 0.92f + i * 0.17f, charge, transit, intensity, color, core, 0.92f);
-            DrawCircle(ports[i].Position, ports[i].Radius * (0.92f + charge * 0.40f), WithAlpha(core, intensity * (0.12f + transit * 0.16f)));
-        }
-
-        var noseAlpha = intensity * (0.13f + charge * 0.12f + transit * 0.20f);
-        DrawCircle(nose, Math.Clamp(Math.Min(half.X, half.Y) * (0.10f + charge * 0.045f), 4f, 18f), WithAlpha(core, noseAlpha));
-        DrawCircle(coreAnchor, Math.Clamp(Math.Min(half.X, half.Y) * (0.15f + charge * 0.035f), 7f, 26f), WithAlpha(color, noseAlpha * 0.42f));
-    }
-
-    private void DrawWarpPulsePath(
-        Vector2 from,
-        Vector2 to,
-        float seed,
-        float charge,
-        float transit,
-        float intensity,
-        Color color,
-        Color core,
-        float weight)
-    {
-        var delta = to - from;
-        var length = delta.Length();
-        if (length <= 3f)
-        {
-            return;
-        }
-
-        var baseAlpha = intensity * (0.034f + charge * 0.040f + transit * 0.070f) * weight;
-        DrawLine(from, to, WithAlpha(color, baseAlpha), Math.Max(0.7f, 1.2f * weight), true);
-
-        var pulseCount = DetailCount(3, 2, 1);
-        var speed = 0.074f + charge * 0.030f + transit * 0.070f;
-        for (var i = 0; i < pulseCount; i++)
-        {
-            var headT = Fract(seed + i / (float)Math.Max(1, pulseCount) + _phase * speed);
-            var tailT = Math.Max(0f, headT - (0.11f + transit * 0.035f));
-            var head = LerpVec(from, to, headT);
-            var tail = LerpVec(from, to, tailT);
-            var fade = SmoothStep(0f, 0.14f, headT) * (1f - SmoothStep(0.90f, 1f, headT));
-            var alpha = intensity * fade * (0.30f + charge * 0.28f + transit * 0.35f) * weight;
-            var width = (1.5f + charge * 1.15f + transit * 1.65f) * weight;
-            DrawLine(tail, head, WithAlpha(core, alpha), width, true);
-            DrawCircle(head, Math.Clamp(width * 0.90f, 1.2f, 5.5f), WithAlpha(Mix(core, Colors.White, 0.22f), alpha * 0.62f));
-        }
     }
 
     private void DrawMainThrust(float level, float flicker)

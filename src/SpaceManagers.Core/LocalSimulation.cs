@@ -11,7 +11,9 @@ public sealed class LocalSimulation
     private readonly List<AsteroidState> _asteroids = new();
     private readonly List<AsteroidEventState> _asteroidEvents = new();
     private readonly List<Vector2> _asteroidPreviousPositions = new();
+    private readonly Dictionary<int, WorldGridCell> _asteroidCells = new();
     private readonly Dictionary<int, InputCommand> _lastCommands = new();
+    private readonly Dictionary<int, Vector2> _shipNavigationTargets = new();
     private readonly Dictionary<int, long> _nextSunBurnImpactTicks = new();
     private readonly Dictionary<ulong, long> _nextShipCollisionDamageTicks = new();
     private readonly Random _random;
@@ -22,6 +24,7 @@ public sealed class LocalSimulation
     private int _nextShipId = 2;
     private int _nextAsteroidId = 1;
     private float _asteroidSpawnTimer;
+    private WorldGridCell _activeGridCell;
 
     public LocalSimulation(SimulationConfig? config = null)
     {
@@ -52,14 +55,17 @@ public sealed class LocalSimulation
     public void ResetPlayerShip(ShipState state)
     {
         _playerShip = state;
+        _activeGridCell = WorldGrid.CellAt(_playerShip.Position, _config.Bounds);
         _enemyShips.Clear();
         _lastCommands.Clear();
         _lastCommands[_playerShip.Id] = InputCommand.Idle(_playerShip.Position);
+        _shipNavigationTargets.Clear();
         _projectiles.Clear();
         _projectileImpacts.Clear();
         _asteroids.Clear();
         _asteroidEvents.Clear();
         _asteroidPreviousPositions.Clear();
+        _asteroidCells.Clear();
         _nextSunBurnImpactTicks.Clear();
         _nextShipCollisionDamageTicks.Clear();
         _tick = 0;
@@ -77,7 +83,7 @@ public sealed class LocalSimulation
 
     public void RevivePlayerShip(Vector2? position = null, float? rotation = null)
     {
-        _playerShip.Position = Bounds.Clamp(position ?? _playerShip.Position, MathF.Max(_config.ShipRadius, _playerShip.Hitbox.BoundingRadius));
+        _playerShip.Position = position ?? _playerShip.Position;
         _playerShip.Velocity = Vector2.Zero;
         _playerShip.Rotation = rotation ?? _playerShip.Rotation;
         _playerShip.Energy = _config.MaxEnergy;
@@ -88,6 +94,7 @@ public sealed class LocalSimulation
         _nextSunBurnImpactTicks.Remove(_playerShip.Id);
         RemoveShipCollisionCooldownsFor(_playerShip.Id);
         _lastCommands[_playerShip.Id] = InputCommand.Idle(_playerShip.Position);
+        SyncActiveGridToPlayer(clearTransientObjects: true);
     }
 
     public bool TryGetLastCommand(int shipId, out InputCommand command)
@@ -97,11 +104,16 @@ public sealed class LocalSimulation
 
     public int SpawnEnemyShip(Vector2 position, float rotation, ShipHitbox hitbox)
     {
+        return SpawnNpcShip(position, rotation, hitbox, ShipRole.Pirate, string.Empty);
+    }
+
+    public int SpawnNpcShip(Vector2 position, float rotation, ShipHitbox hitbox, ShipRole role, string callsign, string visualId = "")
+    {
         var id = _nextShipId++;
         var boundaryRadius = Math.Max(_config.ShipRadius, hitbox.BoundingRadius);
         var ship = new ShipState(
             id,
-            _config.Bounds.Clamp(position, boundaryRadius),
+            ClampToActiveGrid(position, boundaryRadius),
             Vector2.Zero,
             rotation,
             _config.MaxEnergy,
@@ -109,10 +121,14 @@ public sealed class LocalSimulation
             hitbox,
             CreateFullCombatStats(),
             ShipMode.Navigation,
-            0f);
+            0f,
+            role,
+            callsign,
+            visualId);
 
         _enemyShips.Add(ship);
         _lastCommands[id] = InputCommand.Idle(_playerShip.Position);
+        _shipNavigationTargets[id] = RandomPointInActiveGrid(boundaryRadius + 260f);
         return id;
     }
 
@@ -154,7 +170,45 @@ public sealed class LocalSimulation
         }
     }
 
+    private void ApplyWeaponDamageToShipState(ref ShipState ship, ProjectileState projectile, bool protectedByGodMode)
+    {
+        if (protectedByGodMode)
+        {
+            return;
+        }
+
+        ship.Combat = ship.Combat.ApplyWeaponDamage(
+            projectile.Damage,
+            WeaponCatalog.DamageProfileFor(projectile.DamageType),
+            _config.ShieldZeroRegenerationLockout);
+        if (ship.IsDestroyed)
+        {
+            ship.Velocity *= 0.15f;
+        }
+    }
+
     public void SpawnProjectile(int ownerId, Vector2 position, Vector2 velocity, float lifetime, float damage)
+    {
+        SpawnProjectile(
+            ownerId,
+            position,
+            velocity,
+            lifetime,
+            damage,
+            WeaponCatalog.Default.Id,
+            WeaponCatalog.Default.DamageType,
+            MathF.Max(0f, velocity.Length()) * MathF.Max(0f, lifetime));
+    }
+
+    public void SpawnProjectile(
+        int ownerId,
+        Vector2 position,
+        Vector2 velocity,
+        float lifetime,
+        float damage,
+        string weaponId,
+        WeaponDamageType damageType,
+        float range)
     {
         if (_config.MaxProjectiles <= 0)
         {
@@ -166,7 +220,16 @@ public sealed class LocalSimulation
             _projectiles.RemoveAt(0);
         }
 
-        _projectiles.Add(new ProjectileState(_nextProjectileId++, ownerId, position, velocity, lifetime, damage));
+        _projectiles.Add(new ProjectileState(
+            _nextProjectileId++,
+            ownerId,
+            position,
+            velocity,
+            lifetime,
+            damage,
+            weaponId,
+            damageType,
+            MathF.Max(0f, range)));
     }
 
     public void SeedAsteroids(int count)
@@ -179,7 +242,7 @@ public sealed class LocalSimulation
         var target = Math.Min(count, _config.AsteroidMaxActiveCount);
         for (var i = _asteroids.Count; i < target; i++)
         {
-            if (!TrySpawnAsteroid(prewarmSeconds: RandomRange(0f, 22f)))
+            if (!TrySpawnAsteroid(_activeGridCell, prewarmSeconds: RandomRange(0f, 22f)))
             {
                 break;
             }
@@ -188,7 +251,8 @@ public sealed class LocalSimulation
 
     public int SpawnAsteroid(Vector2 position, Vector2 velocity, float referenceDiameter, float? structure = null, int variant = 0)
     {
-        if (_config.AsteroidMaxActiveCount <= 0 || _asteroids.Count >= _config.AsteroidMaxActiveCount)
+        var cell = WorldGrid.CellAt(position, _config.Bounds);
+        if (_config.AsteroidMaxActiveCount <= 0 || CountAsteroidsInCell(cell) >= _config.AsteroidMaxActiveCount)
         {
             return -1;
         }
@@ -208,10 +272,11 @@ public sealed class LocalSimulation
             RandomRange(-1.2f, 1.2f),
             maxStructure,
             maxStructure,
-            AsteroidPhysics.HeatRatio(position, _config),
+            IsPrimaryCell(cell) ? AsteroidPhysics.HeatRatio(position, _config) : 0f,
             variant,
             _random.Next());
         _asteroids.Add(asteroid);
+        _asteroidCells[asteroid.Id] = cell;
         return asteroid.Id;
     }
 
@@ -261,12 +326,13 @@ public sealed class LocalSimulation
         _projectileImpacts.Clear();
         _lastCommands[_playerShip.Id] = command;
         StepShip(ref _playerShip, command, dt);
+        SyncActiveGridToPlayer(clearTransientObjects: true);
 
         for (var index = 0; index < _enemyShips.Count; index++)
         {
             var enemy = _enemyShips[index];
             var enemyCommand = ShouldRefreshEnemyCommand(enemy)
-                ? BuildEnemyCommand(enemy, _playerShip)
+                ? BuildNpcCommand(enemy)
                 : ReuseEnemyCommand(enemy);
             StepShip(ref enemy, enemyCommand, dt);
             _lastCommands[enemy.Id] = enemyCommand with { ToggleMode = false };
@@ -330,42 +396,258 @@ public sealed class LocalSimulation
         ship.Velocity = SimulationMath.ClampLength(ship.Velocity, speedLimit);
 
         ship.Position += ship.Velocity * dt;
-        var boundaryRadius = Math.Max(_config.ShipRadius, ship.Hitbox.BoundingRadius);
-        if (!_config.Bounds.Contains(ship.Position, boundaryRadius))
-        {
-            var clamped = _config.Bounds.Clamp(ship.Position, boundaryRadius);
-            if (Math.Abs(clamped.X - ship.Position.X) > 0.001f)
-            {
-                ship.Velocity = new Vector2(-ship.Velocity.X * 0.18f, ship.Velocity.Y);
-            }
-
-            if (Math.Abs(clamped.Y - ship.Position.Y) > 0.001f)
-            {
-                ship.Velocity = new Vector2(ship.Velocity.X, -ship.Velocity.Y * 0.18f);
-            }
-
-            ship.Position = clamped;
-        }
-
         ship.WeaponCooldown = MathF.Max(0f, ship.WeaponCooldown - dt);
         ship.Energy = MathF.Min(_config.MaxEnergy, ship.Energy + _config.EnergyRechargePerSecond * dt);
 
-        if (ship.Mode == ShipMode.Combat && command.Fire && ship.WeaponCooldown <= 0f && ship.Energy >= _config.WeaponEnergyCost)
+        var weapon = _config.PrimaryWeapon ?? WeaponCatalog.Default;
+        if (CanFireWeapon(ship, command, weapon, out var weaponAimWorld))
         {
-            FireProjectile(ship, command.AimWorld);
-            ship.WeaponCooldown = _config.WeaponCooldown;
-            ship.Energy -= _config.WeaponEnergyCost;
+            FireWeapon(ship, weapon, weaponAimWorld);
+            ship.WeaponCooldown = weapon.Cooldown;
+            ship.Energy -= weapon.EnergyCost;
         }
     }
 
-    private void FireProjectile(ShipState ship, Vector2 aimWorld)
+    private bool CanFireWeapon(ShipState ship, InputCommand command, WeaponDefinition weapon, out Vector2 aimWorld)
+    {
+        aimWorld = command.AimWorld;
+        if (ship.Mode != ShipMode.Combat
+            || !command.Fire
+            || ship.WeaponCooldown > 0f
+            || ship.Energy < weapon.EnergyCost)
+        {
+            return false;
+        }
+
+        if (weapon.FireMode == WeaponFireMode.Turret)
+        {
+            if (command.LockedTargetShipId > 0 && TryFindShip(command.LockedTargetShipId, out var lockedTarget))
+            {
+                aimWorld = lockedTarget.Hitbox.WorldCenter(lockedTarget.Position, lockedTarget.Rotation);
+            }
+            else if (ship.Id == _playerShip.Id)
+            {
+                return false;
+            }
+
+            return IsAimWithinWeaponRange(ship, aimWorld, weapon);
+        }
+
+        if (!IsAimInsideManualCone(ship, aimWorld, weapon))
+        {
+            return false;
+        }
+
+        return weapon.DamageType != WeaponDamageType.Laser || IsAimWithinWeaponRange(ship, aimWorld, weapon);
+    }
+
+    private void FireWeapon(ShipState ship, WeaponDefinition weapon, Vector2 aimWorld)
+    {
+        if (weapon.DamageType == WeaponDamageType.Laser)
+        {
+            FireHitscanWeapon(ship, weapon, aimWorld);
+            return;
+        }
+
+        FireProjectile(ship, weapon, aimWorld);
+    }
+
+    private void FireProjectile(ShipState ship, WeaponDefinition weapon, Vector2 aimWorld)
     {
         var forward = SimulationMath.ForwardFromRotation(ship.Rotation);
         var direction = SimulationMath.SafeNormalize(aimWorld - ship.Position, forward);
         var muzzleDistance = Math.Max(_config.ShipRadius, ship.Hitbox.ForwardExtent) + 6f;
         var muzzlePosition = ship.Position + direction * muzzleDistance;
-        var velocity = direction * _config.ProjectileSpeed + ship.Velocity * 0.25f;
-        SpawnProjectile(ship.Id, muzzlePosition, velocity, _config.ProjectileLifetime, _config.ProjectileDamage);
+        var velocity = direction * weapon.ProjectileSpeed + ship.Velocity * 0.25f;
+        SpawnProjectile(
+            ship.Id,
+            muzzlePosition,
+            velocity,
+            weapon.ProjectileLifetime,
+            weapon.Damage,
+            weapon.Id,
+            weapon.DamageType,
+            weapon.EffectiveRange);
+    }
+
+    private void FireHitscanWeapon(ShipState ship, WeaponDefinition weapon, Vector2 aimWorld)
+    {
+        var forward = SimulationMath.ForwardFromRotation(ship.Rotation);
+        var direction = SimulationMath.SafeNormalize(aimWorld - ship.Position, forward);
+        var muzzleDistance = Math.Max(_config.ShipRadius, ship.Hitbox.ForwardExtent) + 6f;
+        var muzzlePosition = ship.Position + direction * muzzleDistance;
+        var range = MathF.Max(0f, weapon.EffectiveRange);
+        var endPosition = muzzlePosition + direction * range;
+        var laserProjectile = new ProjectileState(
+            _nextProjectileId++,
+            ship.Id,
+            muzzlePosition,
+            direction * MathF.Max(weapon.ProjectileSpeed, range),
+            0f,
+            weapon.Damage,
+            weapon.Id,
+            weapon.DamageType,
+            range);
+
+        var bestDistanceSquared = float.PositiveInfinity;
+        var bestShipIndex = int.MinValue;
+        var bestAsteroidIndex = -1;
+        var bestSurface = ProjectileImpactSurface.Structure;
+        var bestImpactPosition = Vector2.Zero;
+
+        ConsiderShipHit(_playerShip, -1);
+        for (var index = 0; index < _enemyShips.Count; index++)
+        {
+            ConsiderShipHit(_enemyShips[index], index);
+        }
+
+        for (var index = 0; index < _asteroids.Count; index++)
+        {
+            var asteroid = _asteroids[index];
+            if (asteroid.IsDestroyed
+                || !SegmentMayHitCircle(muzzlePosition, endPosition, asteroid.Position, asteroid.Radius)
+                || !SegmentIntersectsCircle(muzzlePosition, endPosition, asteroid.Position, asteroid.Radius))
+            {
+                continue;
+            }
+
+            var impact = SegmentCircleEntryPoint(muzzlePosition, endPosition, asteroid.Position, asteroid.Radius, direction);
+            var distanceSquared = Vector2.DistanceSquared(muzzlePosition, impact);
+            if (distanceSquared >= bestDistanceSquared)
+            {
+                continue;
+            }
+
+            bestDistanceSquared = distanceSquared;
+            bestShipIndex = int.MinValue;
+            bestAsteroidIndex = index;
+            bestSurface = ProjectileImpactSurface.Asteroid;
+            bestImpactPosition = impact;
+        }
+
+        if (bestShipIndex == -1)
+        {
+            AddProjectileImpact(
+                laserProjectile,
+                muzzlePosition,
+                bestImpactPosition,
+                _playerShip.Id,
+                _playerShip.Position,
+                _playerShip.Rotation,
+                _playerShip.Hitbox,
+                bestImpactPosition,
+                bestSurface,
+                ShieldRatioAfterHit(_playerShip.Combat, ProjectileDamageForSurface(laserProjectile, bestSurface)));
+            ApplyWeaponDamageToShipState(ref _playerShip, laserProjectile, PlayerGodMode);
+            return;
+        }
+
+        if (bestShipIndex >= 0)
+        {
+            var enemy = _enemyShips[bestShipIndex];
+            AddProjectileImpact(
+                laserProjectile,
+                muzzlePosition,
+                bestImpactPosition,
+                enemy.Id,
+                enemy.Position,
+                enemy.Rotation,
+                enemy.Hitbox,
+                bestImpactPosition,
+                bestSurface,
+                ShieldRatioAfterHit(enemy.Combat, ProjectileDamageForSurface(laserProjectile, bestSurface)));
+            ApplyWeaponDamageToShipState(ref enemy, laserProjectile, protectedByGodMode: false);
+            _enemyShips[bestShipIndex] = enemy;
+            return;
+        }
+
+        if (bestAsteroidIndex >= 0)
+        {
+            AddProjectileImpact(
+                laserProjectile,
+                muzzlePosition,
+                bestImpactPosition,
+                _asteroids[bestAsteroidIndex].Position,
+                _asteroids[bestAsteroidIndex].Radius,
+                ProjectileImpactSurface.Asteroid,
+                0f);
+            var asteroid = _asteroids[bestAsteroidIndex];
+            asteroid.Structure = MathF.Max(0f, asteroid.Structure - ProjectileDamageForSurface(laserProjectile, ProjectileImpactSurface.Asteroid));
+            _asteroids[bestAsteroidIndex] = asteroid;
+            if (asteroid.IsDestroyed)
+            {
+                DestroyAsteroid(bestAsteroidIndex, AsteroidEventType.RockExplosion);
+            }
+        }
+
+        void ConsiderShipHit(ShipState target, int shipIndex)
+        {
+            if (target.IsDestroyed || !CanProjectileHit(laserProjectile, target.Id))
+            {
+                return;
+            }
+
+            var surface = SurfaceForCombat(target.Combat);
+            if (!TryIntersectShipSurface(target.Position, target.Rotation, target.Hitbox, surface, muzzlePosition, endPosition, out var impact))
+            {
+                return;
+            }
+
+            var distanceSquared = Vector2.DistanceSquared(muzzlePosition, impact);
+            if (distanceSquared >= bestDistanceSquared)
+            {
+                return;
+            }
+
+            bestDistanceSquared = distanceSquared;
+            bestShipIndex = shipIndex;
+            bestAsteroidIndex = -1;
+            bestSurface = surface;
+            bestImpactPosition = impact;
+        }
+    }
+
+    private static bool IsAimInsideManualCone(ShipState ship, Vector2 aimWorld, WeaponDefinition weapon)
+    {
+        var forward = SimulationMath.ForwardFromRotation(ship.Rotation);
+        var direction = SimulationMath.SafeNormalize(aimWorld - ship.Position, forward);
+        var halfConeRadians = MathF.Max(0f, weapon.ManualConeDegrees) * MathF.PI / 360f;
+        var minDot = MathF.Cos(halfConeRadians);
+        return Vector2.Dot(forward, direction) >= minDot;
+    }
+
+    private static bool IsAimWithinWeaponRange(ShipState ship, Vector2 aimWorld, WeaponDefinition weapon)
+    {
+        var range = weapon.EffectiveRange;
+        if (range <= 0f)
+        {
+            return true;
+        }
+
+        var muzzleDistance = Math.Max(ship.Hitbox.ForwardExtent, ship.Hitbox.BoundingRadius) + 6f;
+        var allowedDistance = range + muzzleDistance;
+        return Vector2.DistanceSquared(ship.Position, aimWorld) <= allowedDistance * allowedDistance;
+    }
+
+    private bool TryFindShip(int shipId, out ShipState ship)
+    {
+        if (shipId == _playerShip.Id)
+        {
+            ship = _playerShip;
+            return true;
+        }
+
+        for (var index = 0; index < _enemyShips.Count; index++)
+        {
+            if (_enemyShips[index].Id == shipId)
+            {
+                ship = _enemyShips[index];
+                return true;
+            }
+        }
+
+        ship = default;
+        return false;
     }
 
     private void StepProjectiles(float dt)
@@ -374,7 +656,24 @@ public sealed class LocalSimulation
         {
             var projectile = _projectiles[index];
             var previousPosition = projectile.Position;
-            projectile.Position += projectile.Velocity * dt;
+            var step = projectile.Velocity * dt;
+            var stepDistance = step.Length();
+            var rangeExpired = false;
+            if (projectile.RangeRemaining <= 0f)
+            {
+                rangeExpired = true;
+                step = Vector2.Zero;
+                stepDistance = 0f;
+            }
+            else if (stepDistance > projectile.RangeRemaining)
+            {
+                step = SimulationMath.SafeNormalize(step, projectile.Velocity) * projectile.RangeRemaining;
+                stepDistance = projectile.RangeRemaining;
+                rangeExpired = true;
+            }
+
+            projectile.Position += step;
+            projectile.RangeRemaining = MathF.Max(0f, projectile.RangeRemaining - stepDistance);
             projectile.Lifetime -= dt;
 
             if (TryHitShip(projectile, previousPosition, projectile.Position))
@@ -389,7 +688,7 @@ public sealed class LocalSimulation
                 continue;
             }
 
-            if (projectile.Lifetime <= 0f || !_config.Bounds.Contains(projectile.Position, 0f))
+            if (projectile.Lifetime <= 0f || rangeExpired)
             {
                 _projectiles.RemoveAt(index);
                 continue;
@@ -406,6 +705,7 @@ public sealed class LocalSimulation
             && !_playerShip.IsDestroyed
             && TryIntersectShipSurface(_playerShip.Position, _playerShip.Rotation, _playerShip.Hitbox, playerSurface, previousPosition, currentPosition, out var playerImpactPosition))
         {
+            var playerSurfaceDamage = ProjectileDamageForSurface(projectile, playerSurface);
             AddProjectileImpact(
                 projectile,
                 previousPosition,
@@ -416,14 +716,9 @@ public sealed class LocalSimulation
                 _playerShip.Hitbox,
                 playerImpactPosition,
                 playerSurface,
-                ShieldRatioAfterHit(_playerShip.Combat, projectile.Damage));
-            ApplyDamageToShip(_playerShip.Id, projectile.Damage);
+                ShieldRatioAfterHit(_playerShip.Combat, playerSurfaceDamage));
+            ApplyWeaponDamageToShipState(ref _playerShip, projectile, PlayerGodMode);
             return true;
-        }
-
-        if (projectile.OwnerId != _playerShip.Id)
-        {
-            return false;
         }
 
         for (var index = 0; index < _enemyShips.Count; index++)
@@ -441,6 +736,7 @@ public sealed class LocalSimulation
                 continue;
             }
 
+            var enemySurfaceDamage = ProjectileDamageForSurface(projectile, enemySurface);
             AddProjectileImpact(
                 projectile,
                 previousPosition,
@@ -451,8 +747,8 @@ public sealed class LocalSimulation
                 enemy.Hitbox,
                 enemyImpactPosition,
                 enemySurface,
-                ShieldRatioAfterHit(enemy.Combat, projectile.Damage));
-            ApplyDamageToShipState(ref enemy, projectile.Damage, protectedByGodMode: false);
+                ShieldRatioAfterHit(enemy.Combat, enemySurfaceDamage));
+            ApplyWeaponDamageToShipState(ref enemy, projectile, protectedByGodMode: false);
             _enemyShips[index] = enemy;
             return true;
         }
@@ -548,7 +844,7 @@ public sealed class LocalSimulation
             targetHitbox.Size,
             targetRotation,
             Math.Clamp(shieldRatio, 0f, 1f),
-            projectile.Damage,
+            ProjectileDamageForSurface(projectile, surface),
             projectile.Velocity.Length(),
             ProjectileImpactKind.Projectile,
             projectile.Id * 92821 + _nextProjectileImpactId * 104729));
@@ -578,7 +874,7 @@ public sealed class LocalSimulation
             new Vector2(targetRadius * 2f, targetRadius * 2f),
             0f,
             Math.Clamp(shieldRatio, 0f, 1f),
-            projectile.Damage,
+            ProjectileDamageForSurface(projectile, surface),
             projectile.Velocity.Length(),
             ProjectileImpactKind.Projectile,
             projectile.Id * 92821 + _nextProjectileImpactId * 104729));
@@ -725,6 +1021,166 @@ public sealed class LocalSimulation
         return false;
     }
 
+    private void SyncActiveGridToPlayer(bool clearTransientObjects)
+    {
+        var playerCell = WorldGrid.CellAt(_playerShip.Position, _config.Bounds);
+        if (playerCell == _activeGridCell)
+        {
+            return;
+        }
+
+        _activeGridCell = playerCell;
+        if (!clearTransientObjects)
+        {
+            return;
+        }
+
+        ClearInactiveGridObjectsForGridSwitch();
+    }
+
+    private void ClearInactiveGridObjectsForGridSwitch()
+    {
+        var playerCommand = _lastCommands.TryGetValue(_playerShip.Id, out var command)
+            ? command
+            : InputCommand.Idle(_playerShip.Position);
+
+        _projectiles.Clear();
+        _projectileImpacts.Clear();
+        _asteroidEvents.Clear();
+        _asteroidPreviousPositions.Clear();
+        _nextShipCollisionDamageTicks.Clear();
+        RemoveInactiveNonPrimaryAsteroids();
+        RemoveSunBurnCooldownsOutsideSimulatedCells();
+        foreach (var shipId in _lastCommands.Keys.ToArray())
+        {
+            if (shipId != _playerShip.Id && !_enemyShips.Any(ship => ship.Id == shipId))
+            {
+                _lastCommands.Remove(shipId);
+                _shipNavigationTargets.Remove(shipId);
+            }
+        }
+
+        _lastCommands[_playerShip.Id] = playerCommand;
+        _asteroidSpawnTimer = 0f;
+    }
+
+    private Vector2 ActiveGridOrigin()
+    {
+        return WorldGrid.CellOrigin(_activeGridCell, _config.Bounds);
+    }
+
+    private bool ActiveGridIsPrimary()
+    {
+        return _activeGridCell.X == 0 && _activeGridCell.Y == 0;
+    }
+
+    private static bool IsPrimaryCell(WorldGridCell cell)
+    {
+        return cell.X == 0 && cell.Y == 0;
+    }
+
+    private bool IsSimulatedCell(WorldGridCell cell)
+    {
+        return IsPrimaryCell(cell) || cell == _activeGridCell;
+    }
+
+    private Vector2 ClampToActiveGrid(Vector2 position, float padding)
+    {
+        var origin = ActiveGridOrigin();
+        return new Vector2(
+            Math.Clamp(position.X, origin.X - _config.Bounds.HalfWidth + padding, origin.X + _config.Bounds.HalfWidth - padding),
+            Math.Clamp(position.Y, origin.Y - _config.Bounds.HalfHeight + padding, origin.Y + _config.Bounds.HalfHeight - padding));
+    }
+
+    private Vector2 RandomPointInActiveGrid(float padding)
+    {
+        var origin = ActiveGridOrigin();
+        return new Vector2(
+            RandomRange(origin.X - _config.Bounds.HalfWidth + padding, origin.X + _config.Bounds.HalfWidth - padding),
+            RandomRange(origin.Y - _config.Bounds.HalfHeight + padding, origin.Y + _config.Bounds.HalfHeight - padding));
+    }
+
+    private bool IsInsideActiveGrid(Vector2 position, float padding)
+    {
+        var origin = ActiveGridOrigin();
+        return position.X >= origin.X - _config.Bounds.HalfWidth + padding
+            && position.X <= origin.X + _config.Bounds.HalfWidth - padding
+            && position.Y >= origin.Y - _config.Bounds.HalfHeight + padding
+            && position.Y <= origin.Y + _config.Bounds.HalfHeight - padding;
+    }
+
+    private bool IsOutsideActiveGridRemovalBounds(Vector2 position, float radius)
+    {
+        return IsOutsideCellRemovalBounds(position, radius, _activeGridCell);
+    }
+
+    private bool IsOutsideCellRemovalBounds(Vector2 position, float radius, WorldGridCell cell)
+    {
+        var origin = WorldGrid.CellOrigin(cell, _config.Bounds);
+        var margin = _config.AsteroidRemovalMargin + radius;
+        return position.X < origin.X - _config.Bounds.HalfWidth - margin
+            || position.X > origin.X + _config.Bounds.HalfWidth + margin
+            || position.Y < origin.Y - _config.Bounds.HalfHeight - margin
+            || position.Y > origin.Y + _config.Bounds.HalfHeight + margin;
+    }
+
+    private int CountAsteroidsInCell(WorldGridCell cell)
+    {
+        var count = 0;
+        for (var index = 0; index < _asteroids.Count; index++)
+        {
+            var asteroid = _asteroids[index];
+            if (!asteroid.IsDestroyed && AsteroidCell(asteroid) == cell)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private void RemoveInactiveNonPrimaryAsteroids()
+    {
+        for (var index = _asteroids.Count - 1; index >= 0; index--)
+        {
+            var cell = AsteroidCell(_asteroids[index]);
+            if (!IsSimulatedCell(cell))
+            {
+                _asteroidCells.Remove(_asteroids[index].Id);
+                _asteroids.RemoveAt(index);
+            }
+        }
+    }
+
+    private WorldGridCell AsteroidCell(AsteroidState asteroid)
+    {
+        return _asteroidCells.TryGetValue(asteroid.Id, out var cell)
+            ? cell
+            : WorldGrid.CellAt(asteroid.Position, _config.Bounds);
+    }
+
+    private void RemoveSunBurnCooldownsOutsideSimulatedCells()
+    {
+        foreach (var shipId in _nextSunBurnImpactTicks.Keys.ToArray())
+        {
+            if (shipId == _playerShip.Id)
+            {
+                if (!WorldGrid.IsPrimaryCell(_playerShip.Position, _config.Bounds))
+                {
+                    _nextSunBurnImpactTicks.Remove(shipId);
+                }
+
+                continue;
+            }
+
+            var enemy = _enemyShips.FirstOrDefault(ship => ship.Id == shipId);
+            if (enemy.Id == 0 || !WorldGrid.IsPrimaryCell(enemy.Position, _config.Bounds))
+            {
+                _nextSunBurnImpactTicks.Remove(shipId);
+            }
+        }
+    }
+
     private static Vector2 ShieldHalfExtents(ShipHitbox hitbox)
     {
         var halfX = MathF.Max(4f, hitbox.HalfWidth);
@@ -789,6 +1245,11 @@ public sealed class LocalSimulation
         return Math.Clamp((combat.Shield - MathF.Max(0f, damage)) / combat.MaxShield, 0f, 1f);
     }
 
+    private static float ProjectileDamageForSurface(ProjectileState projectile, ProjectileImpactSurface surface)
+    {
+        return WeaponCatalog.DamageProfileFor(projectile.DamageType).DamageFor(surface, projectile.Damage);
+    }
+
     private static float Lerp(float from, float to, float amount)
     {
         return from + (to - from) * amount;
@@ -806,7 +1267,57 @@ public sealed class LocalSimulation
             return targetShipId != _playerShip.Id;
         }
 
-        return targetShipId == _playerShip.Id;
+        if (targetShipId == _playerShip.Id)
+        {
+            return RolesAreHostile(RoleForShip(projectile.OwnerId), _playerShip.Role);
+        }
+
+        var ownerRole = RoleForShip(projectile.OwnerId);
+        var targetRole = RoleForShip(targetShipId);
+        return RolesAreHostile(ownerRole, targetRole);
+    }
+
+    private ShipRole RoleForShip(int shipId)
+    {
+        if (shipId == _playerShip.Id)
+        {
+            return _playerShip.Role;
+        }
+
+        for (var index = 0; index < _enemyShips.Count; index++)
+        {
+            if (_enemyShips[index].Id == shipId)
+            {
+                return _enemyShips[index].Role;
+            }
+        }
+
+        return ShipRole.Pirate;
+    }
+
+    public static bool RolesAreHostile(ShipRole attacker, ShipRole target)
+    {
+        if (attacker == target)
+        {
+            return false;
+        }
+
+        if (attacker == ShipRole.Player)
+        {
+            return target != ShipRole.Player;
+        }
+
+        if (target == ShipRole.Player)
+        {
+            return attacker == ShipRole.Pirate;
+        }
+
+        return attacker switch
+        {
+            ShipRole.Pirate => target is ShipRole.Trader or ShipRole.Diplomat or ShipRole.Ranger or ShipRole.Military,
+            ShipRole.Ranger or ShipRole.Military => target == ShipRole.Pirate,
+            _ => false
+        };
     }
 
     private bool TryHitAsteroid(ProjectileState projectile, Vector2 previousPosition, Vector2 currentPosition)
@@ -822,7 +1333,7 @@ public sealed class LocalSimulation
             }
 
             AddProjectileImpact(projectile, previousPosition, currentPosition, asteroid.Position, asteroid.Radius, ProjectileImpactSurface.Asteroid, 0f);
-            asteroid.Structure = MathF.Max(0f, asteroid.Structure - projectile.Damage);
+            asteroid.Structure = MathF.Max(0f, asteroid.Structure - ProjectileDamageForSurface(projectile, ProjectileImpactSurface.Asteroid));
             _asteroids[index] = asteroid;
             if (asteroid.IsDestroyed)
             {
@@ -842,17 +1353,10 @@ public sealed class LocalSimulation
             return;
         }
 
-        while (_asteroids.Count < Math.Min(_config.AsteroidMinActiveCount, _config.AsteroidMaxActiveCount))
+        EnsureAsteroidMinimum(new WorldGridCell(0, 0));
+        if (!ActiveGridIsPrimary())
         {
-            if (!TrySpawnAsteroid(prewarmSeconds: 0f))
-            {
-                break;
-            }
-        }
-
-        if (_asteroids.Count >= _config.AsteroidMaxActiveCount)
-        {
-            return;
+            EnsureAsteroidMinimum(_activeGridCell);
         }
 
         _asteroidSpawnTimer -= dt;
@@ -861,8 +1365,19 @@ public sealed class LocalSimulation
             return;
         }
 
-        TrySpawnAsteroid(prewarmSeconds: 0f);
+        TrySpawnAsteroid(_activeGridCell, prewarmSeconds: 0f);
         _asteroidSpawnTimer = RandomAsteroidSpawnInterval();
+    }
+
+    private void EnsureAsteroidMinimum(WorldGridCell cell)
+    {
+        while (CountAsteroidsInCell(cell) < Math.Min(_config.AsteroidMinActiveCount, _config.AsteroidMaxActiveCount))
+        {
+            if (!TrySpawnAsteroid(cell, prewarmSeconds: 0f))
+            {
+                break;
+            }
+        }
     }
 
     private void StepAsteroids(float dt)
@@ -886,22 +1401,35 @@ public sealed class LocalSimulation
                 continue;
             }
 
-            asteroid.Velocity += AsteroidPhysics.SolarGravity(asteroid.Position, _config) * dt;
+            var cell = AsteroidCell(asteroid);
+            if (!IsSimulatedCell(cell))
+            {
+                continue;
+            }
+
+            var isPrimaryAsteroid = IsPrimaryCell(cell);
+            if (isPrimaryAsteroid)
+            {
+                asteroid.Velocity += AsteroidPhysics.SolarGravity(asteroid.Position, _config) * dt;
+            }
+
             asteroid.Position += asteroid.Velocity * dt;
             asteroid.Rotation = NormalizeAngle(asteroid.Rotation + asteroid.AngularVelocity * dt);
 
-            var heatTarget = AsteroidPhysics.HeatRatio(asteroid.Position, _config);
+            var heatTarget = isPrimaryAsteroid
+                ? AsteroidPhysics.HeatRatio(asteroid.Position, _config)
+                : 0f;
             var heatRate = heatTarget > asteroid.Heat ? 3.4f : 1.1f;
             asteroid.Heat = SimulationMath.Approach(asteroid.Heat, heatTarget, heatRate * dt);
 
-            if (AsteroidPhysics.IsOutsideRemovalBounds(asteroid.Position, asteroid.Radius, _config))
+            if (IsOutsideCellRemovalBounds(asteroid.Position, asteroid.Radius, cell))
             {
                 asteroid.Structure = -1f;
                 _asteroids[index] = asteroid;
                 continue;
             }
 
-            if (AsteroidPhysics.IsInsideSunBurnZone(asteroid.Position, asteroid.Radius, _config))
+            if (isPrimaryAsteroid && AsteroidPhysics.IsInsideSunBurnZone(asteroid.Position, asteroid.Radius, _config))
             {
                 var burnDamage = _config.AsteroidBurnDamagePerSecond + asteroid.MaxStructure * 1.35f;
                 asteroid.Structure = MathF.Max(0f, asteroid.Structure - burnDamage * dt);
@@ -1268,42 +1796,44 @@ public sealed class LocalSimulation
         {
             if (_asteroids[index].Structure <= 0f)
             {
+                _asteroidCells.Remove(_asteroids[index].Id);
                 _asteroids.RemoveAt(index);
             }
         }
     }
 
-    private bool TrySpawnAsteroid(float prewarmSeconds)
+    private bool TrySpawnAsteroid(WorldGridCell cell, float prewarmSeconds)
     {
-        if (_asteroids.Count >= _config.AsteroidMaxActiveCount)
+        if (CountAsteroidsInCell(cell) >= _config.AsteroidMaxActiveCount)
         {
             return false;
         }
 
         for (var attempt = 0; attempt < 16; attempt++)
         {
-            var asteroid = CreateRandomAsteroid();
+            var asteroid = CreateRandomAsteroid(cell);
             if (prewarmSeconds > 0f)
             {
-                asteroid = PrewarmAsteroid(asteroid, prewarmSeconds);
+                asteroid = PrewarmAsteroid(asteroid, prewarmSeconds, cell);
             }
 
-            if (AsteroidPhysics.IsOutsideRemovalBounds(asteroid.Position, asteroid.Radius, _config)
-                || AsteroidPhysics.IsInsideSunBurnZone(asteroid.Position, asteroid.Radius, _config)
-                || Vector2.DistanceSquared(asteroid.Position, _playerShip.Position) < 1800f * 1800f
+            if (IsOutsideCellRemovalBounds(asteroid.Position, asteroid.Radius, cell)
+                || (IsPrimaryCell(cell) && AsteroidPhysics.IsInsideSunBurnZone(asteroid.Position, asteroid.Radius, _config))
+                || (cell == _activeGridCell && Vector2.DistanceSquared(asteroid.Position, _playerShip.Position) < 1800f * 1800f)
                 || OverlapsExistingAsteroid(asteroid))
             {
                 continue;
             }
 
             _asteroids.Add(asteroid);
+            _asteroidCells[asteroid.Id] = cell;
             return true;
         }
 
         return false;
     }
 
-    private AsteroidState CreateRandomAsteroid()
+    private AsteroidState CreateRandomAsteroid(WorldGridCell cell)
     {
         var sizeRoll = MathF.Pow(RandomRange(0f, 1f), 1.55f);
         var referenceDiameter = Lerp(_config.AsteroidMinReferenceDiameter, _config.AsteroidMaxReferenceDiameter, sizeRoll);
@@ -1313,16 +1843,17 @@ public sealed class LocalSimulation
         var speed = Lerp(_config.AsteroidMinSpeed, _config.AsteroidMaxSpeed, MathF.Pow(RandomRange(0f, 1f), 1.35f));
         var side = _random.Next(4);
         var spawnPadding = radius + 90f;
+        var origin = WorldGrid.CellOrigin(cell, _config.Bounds);
         Vector2 position = side switch
         {
-            0 => new Vector2(RandomRange(-_config.Bounds.HalfWidth, _config.Bounds.HalfWidth), -_config.Bounds.HalfHeight - spawnPadding),
-            1 => new Vector2(_config.Bounds.HalfWidth + spawnPadding, RandomRange(-_config.Bounds.HalfHeight, _config.Bounds.HalfHeight)),
-            2 => new Vector2(RandomRange(-_config.Bounds.HalfWidth, _config.Bounds.HalfWidth), _config.Bounds.HalfHeight + spawnPadding),
-            _ => new Vector2(-_config.Bounds.HalfWidth - spawnPadding, RandomRange(-_config.Bounds.HalfHeight, _config.Bounds.HalfHeight))
+            0 => origin + new Vector2(RandomRange(-_config.Bounds.HalfWidth, _config.Bounds.HalfWidth), -_config.Bounds.HalfHeight - spawnPadding),
+            1 => origin + new Vector2(_config.Bounds.HalfWidth + spawnPadding, RandomRange(-_config.Bounds.HalfHeight, _config.Bounds.HalfHeight)),
+            2 => origin + new Vector2(RandomRange(-_config.Bounds.HalfWidth, _config.Bounds.HalfWidth), _config.Bounds.HalfHeight + spawnPadding),
+            _ => origin + new Vector2(-_config.Bounds.HalfWidth - spawnPadding, RandomRange(-_config.Bounds.HalfHeight, _config.Bounds.HalfHeight))
         };
 
-        var toSun = SimulationMath.SafeNormalize(-position, new Vector2(0f, -1f));
-        var tangent = new Vector2(-toSun.Y, toSun.X);
+        var toGridCenter = SimulationMath.SafeNormalize(origin - position, new Vector2(0f, -1f));
+        var tangent = new Vector2(-toGridCenter.Y, toGridCenter.X);
         var tangentWeight = RandomRange(-0.95f, 0.95f);
         var inwardWeight = RandomRange(0.46f, 1.0f);
         if (RandomRange(0f, 1f) < 0.24f)
@@ -1331,7 +1862,7 @@ public sealed class LocalSimulation
             inwardWeight = RandomRange(0.18f, 0.42f);
         }
 
-        var direction = SimulationMath.SafeNormalize(toSun * inwardWeight + tangent * tangentWeight, toSun);
+        var direction = SimulationMath.SafeNormalize(toGridCenter * inwardWeight + tangent * tangentWeight, toGridCenter);
         var angularVelocity = RandomRange(-1.65f, 1.65f) * Lerp(1.1f, 0.48f, sizeRatio);
         return new AsteroidState(
             _nextAsteroidId++,
@@ -1342,7 +1873,7 @@ public sealed class LocalSimulation
             angularVelocity,
             maxStructure,
             maxStructure,
-            0f,
+            IsPrimaryCell(cell) ? AsteroidPhysics.HeatRatio(position, _config) : 0f,
             _random.Next(Math.Max(1, _config.AsteroidVariantCount)),
             _random.Next());
     }
@@ -1362,18 +1893,24 @@ public sealed class LocalSimulation
             1f);
     }
 
-    private AsteroidState PrewarmAsteroid(AsteroidState asteroid, float seconds)
+    private AsteroidState PrewarmAsteroid(AsteroidState asteroid, float seconds, WorldGridCell cell)
     {
         const float step = 0.12f;
         var iterations = Math.Clamp((int)(seconds / step), 0, 220);
         for (var i = 0; i < iterations; i++)
         {
-            asteroid.Velocity += AsteroidPhysics.SolarGravity(asteroid.Position, _config) * step;
+            if (IsPrimaryCell(cell))
+            {
+                asteroid.Velocity += AsteroidPhysics.SolarGravity(asteroid.Position, _config) * step;
+            }
+
             asteroid.Position += asteroid.Velocity * step;
             asteroid.Rotation = NormalizeAngle(asteroid.Rotation + asteroid.AngularVelocity * step);
-            asteroid.Heat = AsteroidPhysics.HeatRatio(asteroid.Position, _config);
-            if (AsteroidPhysics.IsOutsideRemovalBounds(asteroid.Position, asteroid.Radius, _config)
-                || AsteroidPhysics.IsInsideSunBurnZone(asteroid.Position, asteroid.Radius, _config))
+            asteroid.Heat = IsPrimaryCell(cell)
+                ? AsteroidPhysics.HeatRatio(asteroid.Position, _config)
+                : 0f;
+            if (IsOutsideCellRemovalBounds(asteroid.Position, asteroid.Radius, cell)
+                || (IsPrimaryCell(cell) && AsteroidPhysics.IsInsideSunBurnZone(asteroid.Position, asteroid.Radius, _config)))
             {
                 break;
             }
@@ -1431,7 +1968,7 @@ public sealed class LocalSimulation
 
     private void ApplySunBurnDamageToShip(ref ShipState ship, float dt, bool protectedByGodMode)
     {
-        if (dt <= 0f || ship.IsDestroyed || protectedByGodMode)
+        if (dt <= 0f || ship.IsDestroyed || protectedByGodMode || !WorldGrid.IsPrimaryCell(ship.Position, _config.Bounds))
         {
             return;
         }
@@ -1495,6 +2032,7 @@ public sealed class LocalSimulation
             }
 
             _lastCommands.Remove(_enemyShips[index].Id);
+            _shipNavigationTargets.Remove(_enemyShips[index].Id);
             _nextSunBurnImpactTicks.Remove(_enemyShips[index].Id);
             RemoveShipCollisionCooldownsFor(_enemyShips[index].Id);
             _enemyShips.RemoveAt(index);
@@ -1532,6 +2070,144 @@ public sealed class LocalSimulation
                 _nextShipCollisionDamageTicks.Remove(pair.Key);
             }
         }
+    }
+
+    private InputCommand BuildNpcCommand(ShipState ship)
+    {
+        if (ship.IsDestroyed)
+        {
+            return InputCommand.Idle(ship.Position);
+        }
+
+        if (ship.Role is ShipRole.Trader or ShipRole.Diplomat)
+        {
+            return TryFindNearestHostile(ship, 3200f, out var threat)
+                ? BuildFleeCommand(ship, threat)
+                : BuildCruiseCommand(ship);
+        }
+
+        if (TryFindNearestHostile(ship, ship.Role == ShipRole.Pirate ? 5600f : 7200f, out var target))
+        {
+            return BuildEnemyCommand(ship, target);
+        }
+
+        return BuildCruiseCommand(ship);
+    }
+
+    private bool TryFindNearestHostile(ShipState ship, float range, out ShipState target)
+    {
+        target = default;
+        var bestDistanceSquared = range * range;
+
+        if (RolesAreHostile(ship.Role, _playerShip.Role) && !_playerShip.IsDestroyed)
+        {
+            var distanceSquared = Vector2.DistanceSquared(ship.Position, _playerShip.Position);
+            if (distanceSquared < bestDistanceSquared)
+            {
+                bestDistanceSquared = distanceSquared;
+                target = _playerShip;
+            }
+        }
+
+        for (var index = 0; index < _enemyShips.Count; index++)
+        {
+            var candidate = _enemyShips[index];
+            if (candidate.Id == ship.Id
+                || candidate.IsDestroyed
+                || !RolesAreHostile(ship.Role, candidate.Role))
+            {
+                continue;
+            }
+
+            var distanceSquared = Vector2.DistanceSquared(ship.Position, candidate.Position);
+            if (distanceSquared >= bestDistanceSquared)
+            {
+                continue;
+            }
+
+            bestDistanceSquared = distanceSquared;
+            target = candidate;
+        }
+
+        return target.Id != 0;
+    }
+
+    private InputCommand BuildFleeCommand(ShipState ship, ShipState threat)
+    {
+        var away = ship.Position - threat.Position;
+        if (away.LengthSquared() < 0.001f)
+        {
+            away = SimulationMath.ForwardFromRotation(ship.Rotation);
+        }
+
+        var boundaryDirection = BoundaryRecoveryDirection(ship.Position);
+        var avoidanceForce = CollisionAvoidanceForce(ship);
+        var desiredDirection = SimulationMath.SafeNormalize(
+            SimulationMath.SafeNormalize(away, SimulationMath.ForwardFromRotation(ship.Rotation)) * 1.35f
+            + SimulationMath.SafeNormalize(boundaryDirection, Vector2.Zero) * 0.85f
+            + SimulationMath.SafeNormalize(avoidanceForce, Vector2.Zero) * Math.Clamp(avoidanceForce.Length(), 0f, 1.1f),
+            SimulationMath.ForwardFromRotation(ship.Rotation));
+
+        var desiredRotation = RotationFromForward(desiredDirection);
+        var angle = NormalizeAngle(desiredRotation - ship.Rotation);
+        var absAngle = MathF.Abs(angle);
+        var toggleMode = ship.Mode == ShipMode.Combat && ship.ModeSwitchCooldown <= 0f;
+
+        return new InputCommand(
+            absAngle < 1.2f ? 1f : 0.36f,
+            0f,
+            Math.Clamp(Vector2.Dot(SimulationMath.RightFromRotation(ship.Rotation), desiredDirection) * 0.28f, -0.45f, 0.45f),
+            Math.Clamp(angle / 0.55f, -1f, 1f),
+            ship.Position + desiredDirection * 1800f,
+            false,
+            absAngle < 0.45f,
+            toggleMode);
+    }
+
+    private InputCommand BuildCruiseCommand(ShipState ship)
+    {
+        var boundaryDirection = BoundaryRecoveryDirection(ship.Position);
+        var avoidingBoundary = boundaryDirection.LengthSquared() > 0.001f;
+        if (!_shipNavigationTargets.TryGetValue(ship.Id, out var destination)
+            || Vector2.DistanceSquared(ship.Position, destination) < 520f * 520f
+            || !IsInsideActiveGrid(destination, ship.Hitbox.BoundingRadius + 160f))
+        {
+            destination = RandomPointInActiveGrid(ship.Hitbox.BoundingRadius + 420f);
+            _shipNavigationTargets[ship.Id] = destination;
+        }
+
+        var toDestination = destination - ship.Position;
+        var distance = toDestination.Length();
+        var avoidanceForce = CollisionAvoidanceForce(ship);
+        var avoidanceStrength = avoidanceForce.Length();
+        var desiredDirection = avoidingBoundary
+            ? SimulationMath.SafeNormalize(boundaryDirection, SimulationMath.ForwardFromRotation(ship.Rotation))
+            : SimulationMath.SafeNormalize(
+                SimulationMath.SafeNormalize(toDestination, SimulationMath.ForwardFromRotation(ship.Rotation))
+                + SimulationMath.SafeNormalize(avoidanceForce, Vector2.Zero) * Math.Clamp(avoidanceStrength, 0f, 1.05f),
+                SimulationMath.ForwardFromRotation(ship.Rotation));
+
+        var desiredRotation = RotationFromForward(desiredDirection);
+        var angle = NormalizeAngle(desiredRotation - ship.Rotation);
+        var absAngle = MathF.Abs(angle);
+        var roleSpeed = ship.Role switch
+        {
+            ShipRole.Diplomat => 0.86f,
+            ShipRole.Military or ShipRole.Ranger => 1.0f,
+            ShipRole.Pirate => 0.94f,
+            _ => 0.78f
+        };
+        var toggleMode = ship.Mode == ShipMode.Combat && ship.ModeSwitchCooldown <= 0f;
+
+        return new InputCommand(
+            absAngle < 1.12f ? roleSpeed : 0.22f,
+            0f,
+            Math.Clamp(Vector2.Dot(SimulationMath.RightFromRotation(ship.Rotation), desiredDirection) * 0.18f, -0.35f, 0.35f),
+            Math.Clamp(angle / 0.55f, -1f, 1f),
+            destination,
+            false,
+            distance > 2400f && absAngle < 0.34f && avoidanceStrength < 0.62f,
+            toggleMode);
     }
 
     private InputCommand BuildEnemyCommand(ShipState enemy, ShipState target)
@@ -1665,7 +2341,7 @@ public sealed class LocalSimulation
     private InputCommand ReuseEnemyCommand(ShipState enemy)
     {
         return _lastCommands.TryGetValue(enemy.Id, out var command)
-            ? command with { ToggleMode = false, AimWorld = _playerShip.Position }
+            ? command with { ToggleMode = false }
             : InputCommand.Idle(_playerShip.Position);
     }
 
@@ -1747,10 +2423,11 @@ public sealed class LocalSimulation
     {
         const float margin = 1500f;
         var force = Vector2.Zero;
-        var left = position.X + _config.Bounds.HalfWidth;
-        var right = _config.Bounds.HalfWidth - position.X;
-        var top = position.Y + _config.Bounds.HalfHeight;
-        var bottom = _config.Bounds.HalfHeight - position.Y;
+        var origin = ActiveGridOrigin();
+        var left = position.X - (origin.X - _config.Bounds.HalfWidth);
+        var right = (origin.X + _config.Bounds.HalfWidth) - position.X;
+        var top = position.Y - (origin.Y - _config.Bounds.HalfHeight);
+        var bottom = (origin.Y + _config.Bounds.HalfHeight) - position.Y;
 
         if (left < margin)
         {

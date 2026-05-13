@@ -10,10 +10,13 @@ public partial class SpaceBackdropView : Node2D
     private const float TexturePrimaryLayerAlpha = 1.0f;
     private const float TextureSecondaryLayerAlpha = 0.055f;
     private const float TextureTertiaryLayerAlpha = 0.035f;
+    private const int MaxCachedBackdropFields = 48;
     private static readonly Color BaseBackgroundColor = new(0.0f, 0.006f, 0.012f, 1f);
+    private static readonly Dictionary<string, CachedBackdropField> BackdropFieldCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Queue<string> BackdropFieldCacheOrder = new();
 
-    private readonly List<BackdropStarPoint> _stars = new();
-    private readonly List<BackdropNebulaBlob> _nebulae = new();
+    private IReadOnlyList<BackdropStarPoint> _stars = Array.Empty<BackdropStarPoint>();
+    private IReadOnlyList<BackdropNebulaBlob> _nebulae = Array.Empty<BackdropNebulaBlob>();
 
     private SpaceBackdropTextureLayer? _textureLayer;
     private GeneratedNebulaOverlayLayer? _nebulaLayer;
@@ -21,21 +24,37 @@ public partial class SpaceBackdropView : Node2D
     private StarSystemDefinition _system = SolarSystem.Sol;
     private Texture2D? _spaceTexture;
     private WorldBounds _bounds = new(24000f, 16000f);
+    private string _fieldCacheKey = string.Empty;
+    private Vector2 _lastBackdropCameraPosition;
+    private Vector2 _lastBackdropCameraZoom;
+    private Vector2 _lastBackdropViewportSize;
+    private bool _hasBackdropRedrawState;
 
     public WorldBounds Bounds
     {
         get => _bounds;
         set
         {
+            var changed = Math.Abs(_bounds.HalfWidth - value.HalfWidth) > 0.01f
+                || Math.Abs(_bounds.HalfHeight - value.HalfHeight) > 0.01f;
             _bounds = value;
+            if (changed)
+            {
+                GenerateField();
+            }
+
             PropagateLayerState();
+            if (changed)
+            {
+                QueueBackdropRedraw();
+            }
         }
     }
 
     public override void _Ready()
     {
         ZIndex = -2;
-        TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+        TextureFilter = TextureFilterEnum.Linear;
 
         _textureLayer = new SpaceBackdropTextureLayer { ZIndex = 0 };
         AddChild(_textureLayer);
@@ -49,6 +68,17 @@ public partial class SpaceBackdropView : Node2D
         PropagateLayerState();
     }
 
+    public override void _ExitTree()
+    {
+        _spaceTexture = null;
+        _stars = Array.Empty<BackdropStarPoint>();
+        _nebulae = Array.Empty<BackdropNebulaBlob>();
+        if (_textureLayer is not null)
+        {
+            _textureLayer.SpaceTexture = null;
+        }
+    }
+
     public void SetSystem(StarSystemDefinition system, Texture2D? spaceTexture)
     {
         _system = system;
@@ -60,17 +90,65 @@ public partial class SpaceBackdropView : Node2D
 
     public void QueueBackdropRedraw()
     {
+        RememberBackdropRedrawState();
         _textureLayer?.QueueRedraw();
         _nebulaLayer?.QueueRedraw();
         _starLayer?.QueueRedraw();
     }
 
+    public void QueueBackdropRedrawIfCameraChanged()
+    {
+        if (BackdropCameraStateChanged())
+        {
+            QueueBackdropRedraw();
+        }
+    }
+
+    private bool BackdropCameraStateChanged()
+    {
+        var camera = GetViewport().GetCamera2D();
+        var cameraPosition = camera?.GlobalPosition ?? Vector2.Zero;
+        var cameraZoom = camera?.Zoom ?? Vector2.One;
+        var viewportSize = GetViewportRect().Size;
+
+        if (!_hasBackdropRedrawState)
+        {
+            return true;
+        }
+
+        return _lastBackdropCameraPosition.DistanceSquaredTo(cameraPosition) > 0.01f
+            || _lastBackdropCameraZoom.DistanceSquaredTo(cameraZoom) > 0.000001f
+            || _lastBackdropViewportSize.DistanceSquaredTo(viewportSize) > 0.01f;
+    }
+
+    private void RememberBackdropRedrawState()
+    {
+        var camera = GetViewport().GetCamera2D();
+        _lastBackdropCameraPosition = camera?.GlobalPosition ?? Vector2.Zero;
+        _lastBackdropCameraZoom = camera?.Zoom ?? Vector2.One;
+        _lastBackdropViewportSize = GetViewportRect().Size;
+        _hasBackdropRedrawState = true;
+    }
+
     private void GenerateField()
     {
-        _stars.Clear();
-        _nebulae.Clear();
-
         var background = _system.Background;
+        var cacheKey = BackdropFieldCacheKey(background, Bounds);
+        if (string.Equals(_fieldCacheKey, cacheKey, StringComparison.OrdinalIgnoreCase) && _stars.Count > 0)
+        {
+            return;
+        }
+
+        if (BackdropFieldCache.TryGetValue(cacheKey, out var cachedField))
+        {
+            _stars = cachedField.Stars;
+            _nebulae = cachedField.Nebulae;
+            _fieldCacheKey = cacheKey;
+            return;
+        }
+
+        var stars = new List<BackdropStarPoint>();
+        var nebulae = new List<BackdropNebulaBlob>();
         var rng = new RandomNumberGenerator();
         rng.Seed = (ulong)Math.Max(1, background.StarfieldSeed);
 
@@ -93,7 +171,7 @@ public partial class SpaceBackdropView : Node2D
                 tint * Lerp(1f, backdrop.G, mix) * rng.RandfRange(0.9f, 1f),
                 tint * Lerp(1f, backdrop.B, mix),
                 rng.RandfRange(0.34f, 0.86f));
-            _stars.Add(new BackdropStarPoint(position, radius, color));
+            stars.Add(new BackdropStarPoint(position, radius, color));
         }
 
         rng.Seed = (ulong)Math.Max(1, background.NebulaSeed);
@@ -109,8 +187,14 @@ public partial class SpaceBackdropView : Node2D
             var radius = rng.RandfRange(1200f, 4300f);
             var color = palette[rng.RandiRange(0, palette.Count - 1)];
             var alpha = rng.RandfRange(0.014f, 0.032f) + background.DustDensity * 0.052f;
-            _nebulae.Add(new BackdropNebulaBlob(position, radius, WithAlpha(color, Math.Clamp(alpha, 0.014f, 0.072f))));
+            nebulae.Add(new BackdropNebulaBlob(position, radius, WithAlpha(color, Math.Clamp(alpha, 0.014f, 0.072f))));
         }
+
+        var field = new CachedBackdropField(stars.ToArray(), nebulae.ToArray());
+        CacheBackdropField(cacheKey, field);
+        _stars = field.Stars;
+        _nebulae = field.Nebulae;
+        _fieldCacheKey = cacheKey;
     }
 
     private void PropagateLayerState()
@@ -152,6 +236,55 @@ public partial class SpaceBackdropView : Node2D
         return texturePath.Contains("assets/generated/backgrounds", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static string BackdropFieldCacheKey(SpaceBackdropDefinition background, WorldBounds bounds)
+    {
+        var paletteKey = background.NebulaPalette.Count == 0
+            ? "default"
+            : string.Join(";", background.NebulaPalette.Select(ColorCacheKey));
+        return string.Join(
+            "|",
+            background.Archetype,
+            background.TexturePath,
+            background.StarfieldSeed,
+            background.StarCount,
+            background.NebulaSeed,
+            background.NebulaBlobCount,
+            background.DustDensity,
+            ColorCacheKey(background.TextureTint),
+            bounds.HalfWidth,
+            bounds.HalfHeight,
+            paletteKey);
+    }
+
+    private static string ColorCacheKey(Color color)
+    {
+        return $"{color.R:0.####},{color.G:0.####},{color.B:0.####},{color.A:0.####}";
+    }
+
+    private static void CacheBackdropField(string cacheKey, CachedBackdropField field)
+    {
+        if (BackdropFieldCache.ContainsKey(cacheKey))
+        {
+            return;
+        }
+
+        while (BackdropFieldCache.Count >= MaxCachedBackdropFields && BackdropFieldCacheOrder.Count > 0)
+        {
+            var evictedKey = BackdropFieldCacheOrder.Dequeue();
+            if (!string.Equals(evictedKey, cacheKey, StringComparison.OrdinalIgnoreCase))
+            {
+                BackdropFieldCache.Remove(evictedKey);
+            }
+        }
+
+        BackdropFieldCache[cacheKey] = field;
+        BackdropFieldCacheOrder.Enqueue(cacheKey);
+    }
+
+    private readonly record struct CachedBackdropField(
+        IReadOnlyList<BackdropStarPoint> Stars,
+        IReadOnlyList<BackdropNebulaBlob> Nebulae);
+
     private readonly record struct BackdropStarPoint(Vector2 Position, float Radius, Color Color);
 
     private readonly record struct BackdropNebulaBlob(Vector2 Position, float Radius, Color Color);
@@ -164,12 +297,12 @@ public partial class SpaceBackdropView : Node2D
 
         public override void _Ready()
         {
-            TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+            TextureFilter = TextureFilterEnum.Linear;
         }
 
         public override void _Draw()
         {
-            DrawRect(new Rect2(-Bounds.HalfWidth, -Bounds.HalfHeight, Bounds.HalfWidth * 2f, Bounds.HalfHeight * 2f), BaseBackgroundColor, true);
+            DrawRect(CurrentVisibleWorldRect(this, 900f), BaseBackgroundColor, true);
             if (SpaceTexture is null)
             {
                 return;
@@ -254,20 +387,18 @@ public partial class SpaceBackdropView : Node2D
             if (layer == 1)
             {
                 return new TextureLayerVariant(
-                    new Vector2(0.76f + HashUnit(hash, 0) * 0.48f, 0.82f + HashUnit(hash, 8) * 0.42f),
-                    0.042f + HashUnit(hash, 16) * 0.058f);
+                    new Vector2(0.94f + HashUnit(hash, 0) * 0.16f, 0.96f + HashUnit(hash, 8) * 0.12f),
+                    0.014f + HashUnit(hash, 16) * 0.018f);
             }
 
             if (layer == 2)
             {
                 return new TextureLayerVariant(
-                    new Vector2(1.07f + HashUnit(hash, 0) * 0.52f, 0.72f + HashUnit(hash, 8) * 0.46f),
-                    0.024f + HashUnit(hash, 16) * 0.046f);
+                    new Vector2(0.98f + HashUnit(hash, 0) * 0.12f, 0.93f + HashUnit(hash, 8) * 0.14f),
+                    0.010f + HashUnit(hash, 16) * 0.014f);
             }
 
-            return new TextureLayerVariant(
-                new Vector2(0.91f + HashUnit(hash, 0) * 0.22f, 0.92f + HashUnit(hash, 8) * 0.20f),
-                TexturePrimaryLayerAlpha);
+            return new TextureLayerVariant(Vector2.One, TexturePrimaryLayerAlpha);
         }
 
         private static float LayerParallax(SpaceBackdropDefinition background, int layer)

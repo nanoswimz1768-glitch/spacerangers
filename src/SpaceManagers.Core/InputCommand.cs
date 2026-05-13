@@ -12,5 +12,7 @@ public readonly record struct InputCommand(
     bool Afterburner = false,
     bool ToggleMode = false)
 {
+    public int LockedTargetShipId { get; init; }
+
     public static InputCommand Idle(Vector2 aimWorld) => new(0f, 0f, 0f, 0f, aimWorld, false, false, false);
 }

@@ -7,9 +7,16 @@ namespace SpaceManagersPrototype;
 public static class StarSystemLoader
 {
     public const string DefaultGalaxyPath = "res://assets/generated/galaxy.json";
+    private static readonly Dictionary<string, IReadOnlyList<StarSystemIndexEntry>> GalaxyIndexCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, StarSystemDefinition?> SystemCache = new(StringComparer.OrdinalIgnoreCase);
 
     public static IReadOnlyList<StarSystemIndexEntry> LoadGalaxyIndex(string path = DefaultGalaxyPath)
     {
+        if (GalaxyIndexCache.TryGetValue(path, out var cachedIndex))
+        {
+            return cachedIndex;
+        }
+
         var json = ReadAllText(path);
         if (json is null)
         {
@@ -37,7 +44,9 @@ public static class StarSystemLoader
                     }
                 }
 
-                return entries.Where(entry => !string.IsNullOrWhiteSpace(entry.File)).ToArray();
+                var result = entries.Where(entry => !string.IsNullOrWhiteSpace(entry.File)).ToArray();
+                GalaxyIndexCache[path] = result;
+                return result;
             }
 
             if (document.RootElement.TryGetProperty("systems", out var legacySystems) && legacySystems.ValueKind == JsonValueKind.Array)
@@ -47,20 +56,29 @@ public static class StarSystemLoader
                     entries.Add(ParseIndexEntry(system, string.Empty, string.Empty));
                 }
 
-                return entries.Where(entry => !string.IsNullOrWhiteSpace(entry.File)).ToArray();
+                var result = entries.Where(entry => !string.IsNullOrWhiteSpace(entry.File)).ToArray();
+                GalaxyIndexCache[path] = result;
+                return result;
             }
 
-            return Array.Empty<StarSystemIndexEntry>();
+            GalaxyIndexCache[path] = Array.Empty<StarSystemIndexEntry>();
+            return GalaxyIndexCache[path];
         }
         catch (Exception exception)
         {
             GD.PushWarning($"Failed to parse generated galaxy index '{path}': {exception.Message}");
+            GalaxyIndexCache[path] = Array.Empty<StarSystemIndexEntry>();
             return Array.Empty<StarSystemIndexEntry>();
         }
     }
 
     public static StarSystemDefinition? LoadSystem(string path)
     {
+        if (SystemCache.TryGetValue(path, out var cachedSystem))
+        {
+            return cachedSystem;
+        }
+
         var json = ReadAllText(path);
         if (json is null)
         {
@@ -75,7 +93,7 @@ public static class StarSystemLoader
             var background = ParseBackground(root.GetProperty("background"));
             var planets = ParsePlanets(root.GetProperty("planets"));
 
-            return new StarSystemDefinition(
+            var system = new StarSystemDefinition(
                 GetString(root, "id", PathId(path)),
                 GetString(root, "name", PathId(path)),
                 GetInt(root, "seed", 0),
@@ -84,10 +102,13 @@ public static class StarSystemLoader
                 planets,
                 GetString(root, "sectorId", string.Empty),
                 GetString(root, "sectorName", string.Empty));
+            SystemCache[path] = system;
+            return system;
         }
         catch (Exception exception)
         {
             GD.PushWarning($"Failed to parse generated star system '{path}': {exception.Message}");
+            SystemCache[path] = null;
             return null;
         }
     }

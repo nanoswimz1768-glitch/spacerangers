@@ -12,10 +12,18 @@ var tests = new (string Name, Action Body)[]
     ("afterburner reaches boosted cap", AfterburnerMaxSpeed),
     ("afterburner acceleration softens above normal cap", AfterburnerAccelerationSoftens),
     ("afterburner release keeps inertia", AfterburnerReleaseKeepsInertia),
+    ("player crosses grid boundary without world clamp", PlayerCrossesGridBoundary),
+    ("grid switch preserves pursuing enemies", GridSwitchPreservesPursuingEnemies),
+    ("central grid asteroids continue away from player", CentralGridAsteroidsContinueAwayFromPlayer),
+    ("inactive non-primary asteroids unload on grid switch", InactiveNonPrimaryAsteroidsUnloadOnGridSwitch),
+    ("non primary grid seeds cold asteroids", NonPrimaryGridSeedsColdAsteroids),
     ("projectiles fire toward the cursor", ProjectileDirection),
+    ("manual weapons only fire inside the nose cone", ManualWeaponCone),
     ("projectiles expire after lifetime", ProjectileLifetime),
+    ("projectiles expire after weapon range", ProjectileRange),
     ("projectile count is capped", ProjectileCap),
     ("damage drains shield armor structure in order", DamageOrder),
+    ("weapon damage profiles scale shield armor and structure", WeaponDamageProfiles),
     ("revive restores player without resetting the world", RevivePlayerKeepsWorld),
     ("godmode blocks player damage only", PlayerGodModeBlocksDamage),
     ("sun burn damage scales toward the solar core", SunBurnDamageScalesTowardCore),
@@ -32,6 +40,9 @@ var tests = new (string Name, Action Body)[]
     ("enemy spawn adds a combat ship", EnemySpawn),
     ("player projectiles damage enemies", PlayerProjectileDamagesEnemy),
     ("enemy ai attacks the player", EnemyAiAttacksPlayer),
+    ("npc role hostility follows food chain", NpcRoleHostility),
+    ("pirate projectiles can damage traders", PirateProjectileDamagesTrader),
+    ("galaxy life keeps persistent pilot population", GalaxyLifePopulation),
     ("ship collision damages and pushes both ships", ShipCollisionDamagesAndPushesBoth),
     ("soft ship collision separates without damage", SoftShipCollisionSeparatesWithoutDamage),
     ("enemy ai steers away from nearby ships", EnemyAiAvoidsNearbyShips),
@@ -167,21 +178,177 @@ static void AfterburnerReleaseKeepsInertia()
     Assert(releasedSpeed > sim.Config.MaxSpeed, $"release should not snap immediately to normal max, got {releasedSpeed}");
 }
 
+static void PlayerCrossesGridBoundary()
+{
+    var config = new SimulationConfig
+    {
+        LinearDamping = 0f,
+        AsteroidsEnabled = false,
+        AsteroidMinActiveCount = 0,
+        AsteroidMaxActiveCount = 0
+    };
+    var sim = new LocalSimulation(config);
+    sim.ResetPlayerShip(new ShipState(
+        1,
+        new Vector2(config.Bounds.HalfWidth - 1f, 0f),
+        new Vector2(600f, 0f),
+        0f,
+        100f,
+        0f));
+
+    var snapshot = sim.Step(InputCommand.Idle(Vector2.Zero));
+    var player = snapshot.Ships.Single(ship => ship.Id == sim.PlayerShipId);
+    var cell = WorldGrid.CellAt(player.Position, snapshot.Bounds);
+
+    Assert(player.Position.X > config.Bounds.HalfWidth, $"player should cross the old right boundary, got X {player.Position.X}");
+    Assert(cell.X == 1 && cell.Y == 0, $"player should enter grid +1,0, got {cell}");
+}
+
+static void GridSwitchPreservesPursuingEnemies()
+{
+    var config = new SimulationConfig
+    {
+        LinearDamping = 0f,
+        AsteroidsEnabled = false,
+        AsteroidMinActiveCount = 0,
+        AsteroidMaxActiveCount = 4,
+        MaxProjectiles = 8
+    };
+    var sim = new LocalSimulation(config);
+    sim.ResetPlayerShip(new ShipState(
+        1,
+        new Vector2(config.Bounds.HalfWidth - 1f, 0f),
+        new Vector2(720f, 0f),
+        0f,
+        100f,
+        0f));
+    sim.SpawnAsteroid(new Vector2(1200f, 0f), Vector2.Zero, 80f, structure: 400f);
+    var enemyId = sim.SpawnEnemyShip(new Vector2(config.Bounds.HalfWidth - 420f, 0f), 0f, new ShipHitbox(Vector2.Zero, new Vector2(100f, 100f)));
+    sim.SpawnProjectile(sim.PlayerShipId, new Vector2(400f, 0f), new Vector2(100f, 0f), 2f, 10f);
+
+    var snapshot = sim.Step(InputCommand.Idle(Vector2.Zero));
+    var player = snapshot.Ships.Single(ship => ship.Id == sim.PlayerShipId);
+    var cell = WorldGrid.CellAt(player.Position, snapshot.Bounds);
+
+    Assert(cell.X == 1 && cell.Y == 0, $"player should enter grid +1,0, got {cell}");
+    Assert(snapshot.Ships.Any(ship => ship.Id == enemyId), "pursuing enemy should survive grid switch");
+    Assert(snapshot.Asteroids.Count == 1, "primary-cell asteroid should keep simulating while player leaves");
+    Assert(snapshot.Projectiles.Count == 0, $"inactive-grid projectiles should unload, got {snapshot.Projectiles.Count}");
+}
+
+static void CentralGridAsteroidsContinueAwayFromPlayer()
+{
+    var config = new SimulationConfig
+    {
+        LinearDamping = 0f,
+        AsteroidsEnabled = false,
+        AsteroidMinActiveCount = 0,
+        AsteroidMaxActiveCount = 6,
+        AsteroidSunGravity = 1800000f,
+        AsteroidSunBurnRadius = 0f,
+        AsteroidHeatRadius = 5000f
+    };
+    var sim = new LocalSimulation(config);
+    sim.SpawnAsteroid(new Vector2(3400f, 0f), Vector2.Zero, 80f, structure: 500f);
+    var awayPosition = WorldGrid.CellOrigin(new WorldGridCell(1, 0), config.Bounds);
+    sim.RevivePlayerShip(awayPosition, 0f);
+
+    var snapshot = sim.Step(InputCommand.Idle(awayPosition));
+    var asteroid = snapshot.Asteroids.Single();
+
+    Assert(WorldGrid.CellAt(asteroid.Position, snapshot.Bounds).X == 0, "central asteroid should remain in primary grid");
+    Assert(asteroid.Velocity.Length() > 0f, "central asteroid should still receive solar gravity while player is elsewhere");
+    Assert(asteroid.Heat > 0f, "central asteroid should still update solar heat while player is elsewhere");
+}
+
+static void InactiveNonPrimaryAsteroidsUnloadOnGridSwitch()
+{
+    var config = new SimulationConfig
+    {
+        LinearDamping = 0f,
+        AsteroidsEnabled = false,
+        AsteroidMinActiveCount = 0,
+        AsteroidMaxActiveCount = 6,
+        AsteroidSunGravity = 0f,
+        AsteroidSunBurnRadius = 0f,
+        AsteroidHeatRadius = 0f
+    };
+    var sim = new LocalSimulation(config);
+    var gridOne = WorldGrid.CellOrigin(new WorldGridCell(1, 0), config.Bounds);
+    var gridTwo = WorldGrid.CellOrigin(new WorldGridCell(2, 0), config.Bounds);
+    sim.RevivePlayerShip(gridOne, 0f);
+    sim.SpawnAsteroid(gridOne + new Vector2(400f, 0f), Vector2.Zero, 80f, structure: 500f);
+    sim.SpawnAsteroid(new Vector2(1200f, 0f), Vector2.Zero, 80f, structure: 500f);
+
+    sim.RevivePlayerShip(gridTwo, 0f);
+    var snapshot = sim.Step(InputCommand.Idle(gridTwo));
+
+    Assert(snapshot.Asteroids.Count == 1, $"only primary asteroid should remain after leaving non-primary grid, got {snapshot.Asteroids.Count}");
+    Assert(WorldGrid.CellAt(snapshot.Asteroids.Single().Position, snapshot.Bounds).X == 0, "remaining asteroid should be in the always-simulated primary grid");
+}
+
+static void NonPrimaryGridSeedsColdAsteroids()
+{
+    var config = new SimulationConfig
+    {
+        AsteroidMinActiveCount = 3,
+        AsteroidMaxActiveCount = 3,
+        AsteroidInitialActiveCount = 0,
+        AsteroidSunGravity = 950000f,
+        AsteroidSunBurnRadius = 900f,
+        AsteroidHeatRadius = 1800f
+    };
+    var sim = new LocalSimulation(config);
+    var gridOrigin = WorldGrid.CellOrigin(new WorldGridCell(1, 0), config.Bounds);
+    sim.ResetPlayerShip(new ShipState(
+        1,
+        gridOrigin,
+        Vector2.Zero,
+        0f,
+        100f,
+        0f));
+
+    var snapshot = sim.Step(InputCommand.Idle(gridOrigin));
+
+    var nonPrimaryAsteroids = snapshot.Asteroids
+        .Where(asteroid => IsWithinGridRemovalBounds(asteroid.Position, asteroid.Radius, new WorldGridCell(1, 0), snapshot.Bounds, config.AsteroidRemovalMargin))
+        .ToArray();
+    var primaryAsteroids = snapshot.Asteroids
+        .Where(asteroid => IsWithinGridRemovalBounds(asteroid.Position, asteroid.Radius, new WorldGridCell(0, 0), snapshot.Bounds, config.AsteroidRemovalMargin))
+        .ToArray();
+
+    Assert(snapshot.Asteroids.Count >= 6, $"primary plus active grid should keep separate asteroid budgets alive, got {snapshot.Asteroids.Count}");
+    Assert(primaryAsteroids.Length >= 3, $"primary grid should keep its own asteroid budget alive, got {primaryAsteroids.Length}");
+    Assert(nonPrimaryAsteroids.Length >= 3, $"non-primary active grid should seed asteroids, got {nonPrimaryAsteroids.Length}");
+    Assert(nonPrimaryAsteroids.All(asteroid => asteroid.Heat <= 0.001f), "non-primary grid asteroids should not inherit solar heat");
+}
+
 static void ProjectileDirection()
+{
+    var sim = new LocalSimulation();
+    sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(0f, -1000f), false, false, true));
+    var snapshot = sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(0f, -1000f), true));
+    var projectile = snapshot.Projectiles.Single();
+    Assert(projectile.Velocity.Y < 0f, $"expected projectile to travel forward, got {projectile.Velocity}");
+    Assert(Math.Abs(projectile.Velocity.X) < 0.001f, $"expected straight forward shot, got {projectile.Velocity}");
+    Assert(projectile.WeaponId == WeaponCatalog.Default.Id, $"expected default weapon id, got {projectile.WeaponId}");
+    Assert(projectile.DamageType == WeaponDamageType.Projectile, $"expected projectile damage type, got {projectile.DamageType}");
+}
+
+static void ManualWeaponCone()
 {
     var sim = new LocalSimulation();
     sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(1000f, 0f), false, false, true));
     var snapshot = sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(1000f, 0f), true));
-    var projectile = snapshot.Projectiles.Single();
-    Assert(projectile.Velocity.X > 0f, $"expected projectile to travel right, got {projectile.Velocity}");
-    Assert(Math.Abs(projectile.Velocity.Y) < 0.001f, $"expected flat right shot, got {projectile.Velocity}");
+
+    Assert(snapshot.Projectiles.Count == 0, "manual projectile cannon should not fire 90 degrees off the nose");
 }
 
 static void ProjectileLifetime()
 {
     var sim = new LocalSimulation();
-    sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(1000f, 0f), false, false, true));
-    var snapshot = sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(1000f, 0f), true));
+    sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(0f, -1000f), false, false, true));
+    var snapshot = sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(0f, -1000f), true));
     Assert(snapshot.Projectiles.Count == 1, "projectile should spawn");
 
     for (var i = 0; i < 120; i++)
@@ -190,6 +357,27 @@ static void ProjectileLifetime()
     }
 
     Assert(snapshot.Projectiles.Count == 0, "projectile should expire");
+}
+
+static void ProjectileRange()
+{
+    var weapon = WeaponCatalog.Default with
+    {
+        Range = 90f,
+        ProjectileLifetime = 30f,
+        ProjectileSpeed = 900f
+    };
+    var sim = new LocalSimulation(new SimulationConfig { PrimaryWeapon = weapon });
+    sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(0f, -1000f), false, false, true));
+    var snapshot = sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(0f, -1000f), true));
+    Assert(snapshot.Projectiles.Count == 1, "projectile should spawn");
+
+    for (var i = 0; i < 12; i++)
+    {
+        snapshot = sim.Step(InputCommand.Idle(Vector2.Zero));
+    }
+
+    Assert(snapshot.Projectiles.Count == 0, "projectile should expire after consuming weapon range");
 }
 
 static void ProjectileCap()
@@ -220,6 +408,29 @@ static void DamageOrder()
     Assert(Math.Abs(ship.Combat.Armor) < 0.001f, $"armor should be empty, got {ship.Combat.Armor}");
     Assert(Math.Abs(ship.Combat.Structure) < 0.001f, $"structure should be destroyed, got {ship.Combat.Structure}");
     Assert(ship.IsDestroyed, "ship should be destroyed when structure reaches zero");
+}
+
+static void WeaponDamageProfiles()
+{
+    var combat = new CombatStats(
+        Shield: 100f,
+        Armor: 100f,
+        Structure: 100f,
+        MaxShield: 100f,
+        MaxArmor: 100f,
+        MaxStructure: 100f,
+        ShieldRegenLockout: 0f);
+
+    var afterProjectile = combat.ApplyWeaponDamage(100f, WeaponCatalog.DamageProfileFor(WeaponDamageType.Projectile), 12f);
+    Assert(Math.Abs(afterProjectile.Shield - 50f) < 0.001f, $"projectile should deal 50 shield damage, got {afterProjectile.Shield}");
+
+    var unshielded = combat with { Shield = 0f };
+    var afterLaser = unshielded.ApplyWeaponDamage(100f, WeaponCatalog.DamageProfileFor(WeaponDamageType.Laser), 12f);
+    Assert(Math.Abs(afterLaser.Armor - 50f) < 0.001f, $"laser should deal 50 armor damage, got {afterLaser.Armor}");
+
+    var structureOnly = combat with { Shield = 0f, Armor = 0f };
+    var afterHybrid = structureOnly.ApplyWeaponDamage(100f, WeaponCatalog.DamageProfileFor(WeaponDamageType.Hybrid), 12f);
+    Assert(Math.Abs(afterHybrid.Structure - 40f) < 0.001f, $"all weapons should deal 60 structure damage, got {afterHybrid.Structure}");
 }
 
 static void RevivePlayerKeepsWorld()
@@ -465,10 +676,10 @@ static void NavigationModeBlocksFire()
 static void CombatModeAllowsFire()
 {
     var sim = new LocalSimulation();
-    var snapshot = sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(1000f, 0f), false, false, true));
+    var snapshot = sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(0f, -1000f), false, false, true));
     Assert(snapshot.Ships[0].Mode == ShipMode.Combat, "R should switch to combat mode immediately");
 
-    snapshot = sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(1000f, 0f), true));
+    snapshot = sim.Step(new InputCommand(0f, 0f, 0f, 0f, new Vector2(0f, -1000f), true));
     Assert(snapshot.Projectiles.Count == 1, "combat mode should allow player fire");
 }
 
@@ -577,6 +788,66 @@ static void EnemyAiAttacksPlayer()
 
     var player = snapshot.Ships.Single(ship => ship.Id == sim.PlayerShipId);
     Assert(player.Combat.Shield < player.Combat.MaxShield, $"enemy should damage player shield, got {player.Combat.Shield}");
+}
+
+static void NpcRoleHostility()
+{
+    Assert(LocalSimulation.RolesAreHostile(ShipRole.Pirate, ShipRole.Trader), "pirates should attack traders");
+    Assert(LocalSimulation.RolesAreHostile(ShipRole.Pirate, ShipRole.Diplomat), "pirates should attack diplomats");
+    Assert(LocalSimulation.RolesAreHostile(ShipRole.Military, ShipRole.Pirate), "military should attack pirates");
+    Assert(LocalSimulation.RolesAreHostile(ShipRole.Ranger, ShipRole.Pirate), "rangers should attack pirates");
+    Assert(!LocalSimulation.RolesAreHostile(ShipRole.Military, ShipRole.Trader), "military should not attack traders");
+    Assert(!LocalSimulation.RolesAreHostile(ShipRole.Trader, ShipRole.Pirate), "traders should flee, not attack pirates");
+}
+
+static void PirateProjectileDamagesTrader()
+{
+    var config = new SimulationConfig
+    {
+        ForwardAcceleration = 0f,
+        ReverseAcceleration = 0f,
+        StrafeAcceleration = 0f,
+        TurnSpeed = 0f,
+        LinearDamping = 0f
+    };
+    var sim = new LocalSimulation(config);
+    var hitbox = new ShipHitbox(Vector2.Zero, new Vector2(100f, 100f));
+    var traderId = sim.SpawnNpcShip(new Vector2(120f, 0f), 0f, hitbox, ShipRole.Trader, "Trader Test");
+    var pirateId = sim.SpawnNpcShip(new Vector2(-120f, 0f), 0f, hitbox, ShipRole.Pirate, "Pirate Test");
+    sim.SpawnProjectile(pirateId, new Vector2(-50f, 0f), new Vector2(1200f, 0f), 1f, 100f);
+
+    WorldSnapshot snapshot = sim.CurrentSnapshot;
+    for (var i = 0; i < 12; i++)
+    {
+        snapshot = sim.Step(InputCommand.Idle(Vector2.Zero));
+    }
+
+    var trader = snapshot.Ships.Single(ship => ship.Id == traderId);
+    Assert(trader.Combat.Shield < trader.Combat.MaxShield, $"trader shield should take pirate damage, got {trader.Combat.Shield}");
+}
+
+static void GalaxyLifePopulation()
+{
+    var systems = new[]
+    {
+        new GalaxyLifeSystemRef("alpha", "Alpha", "A"),
+        new GalaxyLifeSystemRef("beta", "Beta", "B")
+    };
+    var config = new GalaxyLifeConfig(ShipsPerSystem: 4, PirateShipsPerSystem: 1, MaxPhysicalShipsPerSystem: 8);
+    var life = new GalaxyLifeSimulation(systems, config, seed: 42);
+
+    Assert(life.Pilots.Count == 8, $"expected 8 persistent pilots, got {life.Pilots.Count}");
+    Assert(life.ActivePilotsForSystem("alpha").Count == 4, "alpha should start with 4 pilots");
+    Assert(life.ActivePilotsForSystem("alpha").Count(pilot => pilot.Role == ShipRole.Pirate) == 1, "pirates should be included inside the per-system pool");
+    Assert(life.Pilots.Any(pilot => pilot.Role == ShipRole.Trader), "population should include traders");
+    Assert(life.Pilots.Any(pilot => pilot.Role == ShipRole.Pirate), "population should include pirates");
+    Assert(life.Pilots.All(pilot => !pilot.ShipAssetId.Contains("Klissan", StringComparison.OrdinalIgnoreCase)), "klissans should not be generated in galaxy life yet");
+
+    var destroyedId = life.Pilots[0].PilotId;
+    var replacement = life.ReportDestroyed(destroyedId);
+    Assert(life.Pilots.Count == 8, "destroyed pilot should be replaced");
+    Assert(life.Pilots.All(pilot => pilot.PilotId != destroyedId), "destroyed pilot should be removed from roster");
+    Assert(life.Pilots.Any(pilot => pilot.PilotId == replacement.PilotId), "replacement pilot should be present");
 }
 
 static void ShipCollisionDamagesAndPushesBoth()
@@ -813,4 +1084,14 @@ static void Assert(bool condition, string message)
     {
         throw new InvalidOperationException(message);
     }
+}
+
+static bool IsWithinGridRemovalBounds(Vector2 position, float radius, WorldGridCell cell, WorldBounds bounds, float removalMargin)
+{
+    var origin = WorldGrid.CellOrigin(cell, bounds);
+    var margin = removalMargin + radius;
+    return position.X >= origin.X - bounds.HalfWidth - margin
+        && position.X <= origin.X + bounds.HalfWidth + margin
+        && position.Y >= origin.Y - bounds.HalfHeight - margin
+        && position.Y <= origin.Y + bounds.HalfHeight + margin;
 }

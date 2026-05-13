@@ -24,6 +24,7 @@ public partial class AsteroidFireLayer : Node2D
     private Texture2D? _smokePuff;
     private Texture2D? _spark;
     private float _timeSeconds;
+    private bool _texturesLoaded;
 
     public IReadOnlyList<AsteroidState> Asteroids { get; set; } = Array.Empty<AsteroidState>();
     public bool UseCulling { get; set; }
@@ -33,21 +34,6 @@ public partial class AsteroidFireLayer : Node2D
     {
         ZIndex = 24;
         TextureFilter = TextureFilterEnum.LinearWithMipmaps;
-        Material = new CanvasItemMaterial
-        {
-            BlendMode = CanvasItemMaterial.BlendModeEnum.Add
-        };
-
-        for (var index = 0; index < FlameLobePaths.Length; index++)
-        {
-            _flameLobes[index] = ResourceLoader.Load<Texture2D>(FlameLobePaths[index]);
-        }
-
-        _heatCorona = ResourceLoader.Load<Texture2D>("res://assets/effects/asteroid_heat_corona.png");
-        _fireGlow = ResourceLoader.Load<Texture2D>("res://assets/effects/asteroid_fire_glow.png");
-        _firePlume = ResourceLoader.Load<Texture2D>("res://assets/effects/asteroid_fire_plume.png");
-        _smokePuff = ResourceLoader.Load<Texture2D>("res://assets/effects/asteroid_smoke_puff.png");
-        _spark = ResourceLoader.Load<Texture2D>("res://assets/effects/asteroid_fire_spark.png");
     }
 
     public override void _ExitTree()
@@ -63,6 +49,7 @@ public partial class AsteroidFireLayer : Node2D
         _firePlume = null;
         _smokePuff = null;
         _spark = null;
+        _texturesLoaded = false;
         Material = null;
     }
 
@@ -117,6 +104,12 @@ public partial class AsteroidFireLayer : Node2D
 
     public override void _Draw()
     {
+        if (Asteroids.Count == 0 && _burnBursts.Count == 0)
+        {
+            return;
+        }
+
+        EnsureTexturesLoaded();
         foreach (var asteroid in Asteroids)
         {
             DrawAsteroidFire(asteroid);
@@ -319,6 +312,7 @@ public partial class AsteroidFireLayer : Node2D
 
     private Texture2D? FlameLobe(int index)
     {
+        EnsureTexturesLoaded();
         if (_flameLobes.Length == 0)
         {
             return null;
@@ -326,6 +320,48 @@ public partial class AsteroidFireLayer : Node2D
 
         var wrapped = ((index % _flameLobes.Length) + _flameLobes.Length) % _flameLobes.Length;
         return _flameLobes[wrapped];
+    }
+
+    private void EnsureTexturesLoaded()
+    {
+        if (_texturesLoaded)
+        {
+            return;
+        }
+
+        Material ??= new CanvasItemMaterial
+        {
+            BlendMode = CanvasItemMaterial.BlendModeEnum.Add
+        };
+
+        for (var index = 0; index < FlameLobePaths.Length; index++)
+        {
+            _flameLobes[index] = LoadTexture(FlameLobePaths[index]);
+        }
+
+        _heatCorona = LoadTexture("res://assets/effects/asteroid_heat_corona.png");
+        _fireGlow = LoadTexture("res://assets/effects/asteroid_fire_glow.png");
+        _firePlume = LoadTexture("res://assets/effects/asteroid_fire_plume.png");
+        _smokePuff = LoadTexture("res://assets/effects/asteroid_smoke_puff.png");
+        _spark = LoadTexture("res://assets/effects/asteroid_fire_spark.png");
+        _texturesLoaded = true;
+    }
+
+    private static Texture2D? LoadTexture(string resourcePath)
+    {
+        if (!ResourceLoader.Exists(resourcePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ResourceLoader.Load<Texture2D>(resourcePath);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static float SmoothStep(float edge0, float edge1, float value)

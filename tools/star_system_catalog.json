@@ -308,97 +308,97 @@
     {
       "id": "generated_highres_cold_blue_void_01",
       "path": "res://assets/generated/background_tiles/cold_blue_void_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 36.315,
+      "validatedSharpness": 615.826,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_smoky_amber_cloud_01",
       "path": "res://assets/generated/background_tiles/smoky_amber_cloud_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 36.197,
+      "validatedSharpness": 424.061,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_black_silent_reach_01",
       "path": "res://assets/generated/background_tiles/black_silent_reach_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 23.067,
+      "validatedSharpness": 32.032,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_crimson_sparse_field_01",
       "path": "res://assets/generated/background_tiles/crimson_sparse_field_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 34.492,
+      "validatedSharpness": 93.568,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_deep_indigo_field_01",
       "path": "res://assets/generated/background_tiles/deep_indigo_field_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 30.473,
+      "validatedSharpness": 195.511,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_emerald_mist_01",
       "path": "res://assets/generated/background_tiles/emerald_mist_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 39.941,
+      "validatedSharpness": 213.37,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_golden_cluster_01",
       "path": "res://assets/generated/background_tiles/golden_cluster_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 38.666,
+      "validatedSharpness": 899.399,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_icy_cyan_starfield_01",
       "path": "res://assets/generated/background_tiles/icy_cyan_starfield_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 36.982,
+      "validatedSharpness": 347.712,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_pale_star_nursery_01",
       "path": "res://assets/generated/background_tiles/pale_star_nursery_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 37.841,
+      "validatedSharpness": 314.364,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_rust_dust_lane_01",
       "path": "res://assets/generated/background_tiles/rust_dust_lane_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 37.722,
+      "validatedSharpness": 286.042,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_teal_nebula_shelf_01",
       "path": "res://assets/generated/background_tiles/teal_nebula_shelf_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 37.17,
+      "validatedSharpness": 420.876,
       "validatedSeamDelta": 0.0
     },
     {
       "id": "generated_highres_violet_rift_01",
       "path": "res://assets/generated/background_tiles/violet_rift_01_tile.png",
-      "source": "imagegen_solstyle_highres_tile",
+      "source": "imagegen_direct_highres_tile",
       "quality": "direct_highres",
-      "validatedSharpness": 37.811,
+      "validatedSharpness": 380.22,
       "validatedSeamDelta": 0.0
     }
   ],

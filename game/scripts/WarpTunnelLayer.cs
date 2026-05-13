@@ -196,7 +196,7 @@ public partial class WarpTunnelLayer : Node2D
 
         UpdateGeometry();
         ApplyMaterial();
-        SetProcess(true);
+        SetProcess(false);
     }
 
     public override void _Process(double delta)
@@ -240,6 +240,7 @@ public partial class WarpTunnelLayer : Node2D
         _residualAge = 0f;
         Active = true;
         Visible = true;
+        SetProcess(true);
         UpdateGeometry();
         ApplyMaterial();
     }
@@ -266,6 +267,7 @@ public partial class WarpTunnelLayer : Node2D
         _residualDuration = Math.Max(0.1f, duration);
         Active = true;
         Visible = true;
+        SetProcess(true);
         UpdateGeometry();
         ApplyMaterial();
     }
@@ -274,6 +276,7 @@ public partial class WarpTunnelLayer : Node2D
     {
         Active = false;
         Visible = false;
+        SetProcess(false);
         _progress = 0f;
         _fade = 0f;
         _residualActive = false;

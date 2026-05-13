@@ -19,6 +19,9 @@ public partial class GameRoot : Node2D
     private const float DebugAsteroidExplosionDistance = 2600f;
     private const float WarpCalibrationSeconds = 12f;
     private const float WarpTransitSeconds = 3f;
+    private const float TargetLockMaxDistance = 18000f;
+    private const float TargetLockPickPadding = 28f;
+    private const float TargetLockMissResetPadding = 96f;
     private static readonly CoreVector2 SystemArrivalPosition = new(1650f, -980f);
     private const float SystemArrivalRotation = -0.28f;
 
@@ -35,6 +38,9 @@ public partial class GameRoot : Node2D
     private readonly Dictionary<int, float> _enemyExplosionRadii = new();
     private readonly Dictionary<int, Color> _enemyExplosionTints = new();
     private readonly Dictionary<int, ShipExplosionVisual> _enemyExplosionVisuals = new();
+    private readonly Dictionary<int, int> _shipIdToPilotId = new();
+    private readonly Dictionary<int, int> _pilotIdToShipId = new();
+    private readonly Dictionary<int, string> _npcShipTexturePaths = new();
     private readonly HashSet<int> _activeEnemyIds = new();
     private readonly HashSet<int> _fullQualityEnemyIds = new();
     private readonly HashSet<int> _balancedQualityEnemyIds = new();
@@ -49,17 +55,20 @@ public partial class GameRoot : Node2D
     private readonly SnapshotBuffer<AsteroidState> _visualAsteroids = new();
     private ProjectileLayer _projectileLayer = null!;
     private ProjectileImpactLayer _projectileImpactLayer = null!;
+    private WeaponRangeLayer _weaponRangeLayer = null!;
     private ExplosionLayer _explosionLayer = null!;
     private AsteroidLayer _asteroidLayer = null!;
     private AsteroidFireLayer _asteroidFireLayer = null!;
     private AsteroidDebrisLayer _asteroidDebrisLayer = null!;
     private DebugHitboxLayer _debugHitboxLayer = null!;
     private EnemyStatusLayer _enemyStatusLayer = null!;
+    private TargetLockLayer _targetLockLayer = null!;
     private ReticleView _reticle = null!;
     private WarpTunnelLayer _warpTunnel = null!;
     private HudOverlay _hud = null!;
     private StarMapOverlay _starMap = null!;
-    private StarMapToggleButton _starMapButton = null!;
+    private StarMapToggleButton? _starMapButton;
+    private GalaxyLifeSimulation? _galaxyLife;
     private Camera2D _camera = null!;
     private IReadOnlyList<string> _shipTexturePaths = Array.Empty<string>();
     private IReadOnlyList<string> _ordinaryShipTexturePaths = Array.Empty<string>();
@@ -71,6 +80,7 @@ public partial class GameRoot : Node2D
     private int _ordinaryShipTextureIndex = -1;
     private int _klissanShipTextureIndex = -1;
     private string _selectedShipName = "Prototype";
+    private int _lockedTargetShipId = -1;
     private string _warpTargetSystemId = string.Empty;
     private float _selectedShipVisualScale = ShipCatalog.DefaultVisualScale;
     private Color _selectedWarpOuterColor = new(0.08f, 0.85f, 1f, 1f);
@@ -87,6 +97,9 @@ public partial class GameRoot : Node2D
     private bool _showShipHitboxes;
     private bool _queuedModeToggle;
     private bool _stressModeActive;
+    private bool _adjacentPreloadQueued;
+    private bool _quitRequested;
+    private int _adjacentPreloadDelayFrames;
     private double _stressElapsed;
     private double _stressPrintElapsed;
     private double _stressFpsSum;
@@ -98,6 +111,7 @@ public partial class GameRoot : Node2D
     private int _stressFrames;
     private int _stressSystemSwitchesRemaining;
     private bool _stressAutopilot;
+    private int _captureQuitDelayFrames;
     private string _vfxCaptureDirectory = string.Empty;
     private double _vfxCaptureElapsed;
     private int _vfxCaptureIndex;
@@ -108,6 +122,7 @@ public partial class GameRoot : Node2D
     private long _handledAsteroidEventTick = -1;
     private long _handledProjectileImpactTick = -1;
     private double _accumulator;
+    private double _galaxyLifeAccumulator;
     private InputCommand _latestCommand;
 
     public override void _Ready()
@@ -127,6 +142,7 @@ public partial class GameRoot : Node2D
         _background = new SpaceBackground { Bounds = _simulation.Bounds };
         _background.SetSystem(_currentSystem);
         AddChild(_background);
+        PreloadAdjacentStarSystems();
 
         AddChild(new MusicController());
 
@@ -144,6 +160,9 @@ public partial class GameRoot : Node2D
         _projectileImpactLayer = new ProjectileImpactLayer();
         AddChild(_projectileImpactLayer);
 
+        _weaponRangeLayer = new WeaponRangeLayer();
+        AddChild(_weaponRangeLayer);
+
         _asteroidDebrisLayer = new AsteroidDebrisLayer();
         AddChild(_asteroidDebrisLayer);
 
@@ -156,17 +175,22 @@ public partial class GameRoot : Node2D
         _enemyStatusLayer = new EnemyStatusLayer();
         AddChild(_enemyStatusLayer);
 
+        _targetLockLayer = new TargetLockLayer();
+        AddChild(_targetLockLayer);
+
         _shipView = new ShipView();
         _shipView.Scale = new Vector2(ShipCatalog.DefaultVisualScale, ShipCatalog.DefaultVisualScale);
         AddChild(_shipView);
         SelectShipTexture(ShipCatalog.IndexOfPreferred(_shipTexturePaths, "2PeopleR"));
         SelectStartupShipIfRequested();
+        InitializeGalaxyLife();
+        SyncGalaxyLifeForActiveSystem();
 
         _warpTunnel = new WarpTunnelLayer();
         AddChild(_warpTunnel);
 
         _reticle = new ReticleView();
-        _reticle.Scale = new Vector2(0.45f, 0.45f);
+        _reticle.Scale = new Vector2(0.55f, 0.55f);
         AddChild(_reticle);
 
         _camera = new Camera2D
@@ -181,25 +205,13 @@ public partial class GameRoot : Node2D
         _hud = new HudOverlay();
         _hud.SetSystem(_currentSystem);
         canvas.AddChild(_hud);
-        _starMapButton = new StarMapToggleButton
-        {
-            AnchorLeft = 1f,
-            AnchorRight = 1f,
-            AnchorTop = 0f,
-            AnchorBottom = 0f,
-            OffsetLeft = -326f,
-            OffsetRight = -284f,
-            OffsetTop = 84f,
-            OffsetBottom = 126f
-        };
-        _starMapButton.ToggleRequested += ToggleStarMap;
-        canvas.AddChild(_starMapButton);
         _starMap = new StarMapOverlay();
         _starMap.CloseRequested += OnStarMapClosed;
         _starMap.ConfirmTargetRequested += TuneWarpTarget;
         _starMap.ResetTargetRequested += ResetWarpTarget;
         canvas.AddChild(_starMap);
         SyncStarMapData();
+        LockFirstVisibleTargetIfRequested();
         AddChild(canvas);
         if (ReadBoolUserArg("--open-star-map"))
         {
@@ -219,9 +231,22 @@ public partial class GameRoot : Node2D
 
     public override void _Process(double delta)
     {
+        if (_quitRequested)
+        {
+            return;
+        }
+
+        RunQueuedAdjacentStarSystemPreload();
+        UpdateDeferredCaptureQuit();
+
         if (!_warpInTransit && Input.IsActionJustPressed("star_map_toggle"))
         {
             ToggleStarMap();
+        }
+
+        if (Input.IsActionJustPressed("music_toggle"))
+        {
+            MusicController.ToggleMuted();
         }
 
         UpdateWarpDrive(delta);
@@ -268,7 +293,10 @@ public partial class GameRoot : Node2D
             Input.MouseMode = Input.MouseModeEnum.Hidden;
         }
 
-        UpdateStressTelemetry(delta);
+        if (UpdateStressTelemetry(delta))
+        {
+            return;
+        }
 
         if (Input.IsActionJustPressed("ship_next_sprite"))
         {
@@ -333,12 +361,18 @@ public partial class GameRoot : Node2D
             DebugRevivePlayer();
         }
 
+        if (Input.IsActionJustPressed("target_lock"))
+        {
+            HandleTargetLockClick();
+        }
+
         if (Input.IsActionJustPressed("ship_toggle_mode"))
         {
             _queuedModeToggle = true;
         }
 
         _latestCommand = ReadInputCommand();
+        StepGalaxyLife(delta);
         _accumulator += Math.Min(delta, 0.1);
 
         while (_accumulator >= FixedDelta)
@@ -378,7 +412,212 @@ public partial class GameRoot : Node2D
         var fire = Input.IsActionPressed("weapon_fire");
         var afterburner = Input.IsActionPressed("ship_afterburner");
 
-        return new InputCommand(forward, reverse, strafe, turn, aimWorld, fire, afterburner, _queuedModeToggle);
+        return new InputCommand(forward, reverse, strafe, turn, aimWorld, fire, afterburner, _queuedModeToggle)
+        {
+            LockedTargetShipId = _lockedTargetShipId
+        };
+    }
+
+    private void HandleTargetLockClick()
+    {
+        var player = PlayerShipFrom(_snapshot);
+        if (player.Id != _simulation.PlayerShipId || player.IsDestroyed)
+        {
+            ClearTargetLock();
+            return;
+        }
+
+        var clickWorld = GetGlobalMousePosition().ToCore();
+        var visibleWorldRect = CameraWorldRect(_camera?.Position ?? player.Position.ToGodot(), 24f);
+        var bestShipId = -1;
+        var bestScore = float.MaxValue;
+        var nearAnyShip = false;
+
+        foreach (var ship in _snapshot.Ships)
+        {
+            if (ship.Id == _simulation.PlayerShipId || ship.IsDestroyed)
+            {
+                continue;
+            }
+
+            var center = ship.Hitbox.WorldCenter(ship.Position, ship.Rotation);
+            if (!visibleWorldRect.HasPoint(center.ToGodot()))
+            {
+                continue;
+            }
+
+            var radius = Math.Clamp(ship.Hitbox.BoundingRadius, 30f, 190f);
+            var distance = CoreVector2.Distance(clickWorld, center);
+            if (distance <= radius + TargetLockMissResetPadding)
+            {
+                nearAnyShip = true;
+            }
+
+            if (!ship.Hitbox.ContainsWorldPoint(ship.Position, ship.Rotation, clickWorld)
+                && distance > radius + TargetLockPickPadding)
+            {
+                continue;
+            }
+
+            var score = Math.Max(0f, distance - radius);
+            if (score >= bestScore)
+            {
+                continue;
+            }
+
+            bestScore = score;
+            bestShipId = ship.Id;
+        }
+
+        if (bestShipId > 0)
+        {
+            SetTargetLock(bestShipId);
+            return;
+        }
+
+        if (!nearAnyShip)
+        {
+            ClearTargetLock();
+        }
+    }
+
+    private void SetTargetLock(int shipId)
+    {
+        if (shipId == _simulation.PlayerShipId)
+        {
+            return;
+        }
+
+        _lockedTargetShipId = shipId;
+        _targetLockLayer?.QueueRedraw();
+    }
+
+    private void LockFirstVisibleTargetIfRequested()
+    {
+        if (!ReadBoolUserArg("--debug-target-lock-first"))
+        {
+            return;
+        }
+
+        var player = PlayerShipFrom(_snapshot);
+        if (player.Id != _simulation.PlayerShipId)
+        {
+            return;
+        }
+
+        var visibleWorldRect = CameraWorldRect(player.Position.ToGodot(), 320f);
+        var bestVisibleShipId = -1;
+        var bestVisibleDistance = float.MaxValue;
+        var bestFallbackShipId = -1;
+        var bestFallbackDistance = float.MaxValue;
+
+        foreach (var ship in _snapshot.Ships)
+        {
+            if (ship.Id == _simulation.PlayerShipId || ship.IsDestroyed)
+            {
+                continue;
+            }
+
+            var distance = CoreVector2.DistanceSquared(player.Position, ship.Position);
+            if (distance < bestFallbackDistance)
+            {
+                bestFallbackDistance = distance;
+                bestFallbackShipId = ship.Id;
+            }
+
+            var center = ship.Hitbox.WorldCenter(ship.Position, ship.Rotation).ToGodot();
+            if (!visibleWorldRect.HasPoint(center) || distance >= bestVisibleDistance)
+            {
+                continue;
+            }
+
+            bestVisibleDistance = distance;
+            bestVisibleShipId = ship.Id;
+        }
+
+        var targetId = bestVisibleShipId > 0 ? bestVisibleShipId : bestFallbackShipId;
+        if (targetId <= 0)
+        {
+            return;
+        }
+
+        SetTargetLock(targetId);
+        GD.Print($"Target lock diagnostic: ship {targetId}.");
+    }
+
+    private void ClearTargetLock()
+    {
+        _lockedTargetShipId = -1;
+        _targetLockLayer?.ClearTarget();
+        _hud?.SetTargetLockState(false, default, default, hostile: false);
+    }
+
+    private void UpdateTargetLockVisuals(WorldSnapshot visualSnapshot, ShipState player)
+    {
+        if (_lockedTargetShipId <= 0
+            || player.Id != _simulation.PlayerShipId
+            || player.IsDestroyed)
+        {
+            _targetLockLayer.ClearTarget();
+            _hud.SetTargetLockState(false, default, player, hostile: false);
+            return;
+        }
+
+        if (!TryFindShip(visualSnapshot.Ships, _lockedTargetShipId, out var target)
+            || target.IsDestroyed)
+        {
+            ClearTargetLock();
+            _hud.SetTargetLockState(false, default, player, hostile: false);
+            return;
+        }
+
+        var distance = CoreVector2.Distance(player.Position, target.Position);
+        if (distance > TargetLockMaxDistance)
+        {
+            ClearTargetLock();
+            _hud.SetTargetLockState(false, default, player, hostile: false);
+            return;
+        }
+
+        var hostile = IsHostileTarget(target);
+        var color = TargetLockColor(target, hostile);
+        _targetLockLayer.SetTarget(target, hostile, color);
+        _hud.SetTargetLockState(true, target, player, hostile);
+    }
+
+    private static bool TryFindShip(IReadOnlyList<ShipState> ships, int shipId, out ShipState ship)
+    {
+        for (var index = 0; index < ships.Count; index++)
+        {
+            if (ships[index].Id == shipId)
+            {
+                ship = ships[index];
+                return true;
+            }
+        }
+
+        ship = default;
+        return false;
+    }
+
+    private static bool IsHostileTarget(ShipState ship)
+    {
+        return ship.Role == ShipRole.Pirate;
+    }
+
+    private static Color TargetLockColor(ShipState target, bool hostile)
+    {
+        if (hostile)
+        {
+            return new Color(1f, 0.18f, 0.10f, 1f);
+        }
+
+        return target.Role switch
+        {
+            ShipRole.Military => new Color(0.78f, 0.95f, 1f, 1f),
+            ShipRole.Ranger => new Color(0.66f, 1f, 0.96f, 1f),
+            _ => new Color(0.76f, 0.94f, 1f, 1f)
+        };
     }
 
     private void UpdateVisuals(double delta, WorldSnapshot visualSnapshot, float systemTimeSeconds)
@@ -451,6 +690,10 @@ public partial class GameRoot : Node2D
         _projectileImpactLayer.UseCulling = true;
         _projectileImpactLayer.SetShieldTargets(visualSnapshot.Ships);
         HandleProjectileImpacts(_snapshot);
+        _weaponRangeLayer.SetState(
+            ship,
+            _simulation.Config.PrimaryWeapon,
+            !playerDestroyed && ship.Mode == ShipMode.Combat && !_warpInTransit && !_starMap.Visible);
 
         _reticle.Position = _latestCommand.AimWorld.ToGodot();
         _reticle.Mode = ship.Mode;
@@ -470,6 +713,7 @@ public partial class GameRoot : Node2D
         _camera.Zoom = new Vector2(cameraZoom, cameraZoom);
         _background.SetVisualTime(systemTimeSeconds);
         _enemyStatusLayer.SetState(visualSnapshot.Ships, _simulation.PlayerShipId, visibleWorldRect, _statusBarEnemyIds);
+        UpdateTargetLockVisuals(visualSnapshot, ship);
         _hud.SetState(visualSnapshot, _simulation.PlayerShipId, _latestCommand.AimWorld, _selectedShipName, _simulation.PlayerGodMode, systemTimeSeconds);
     }
 
@@ -580,14 +824,20 @@ public partial class GameRoot : Node2D
         SyncStarMapData();
         _starMap.Open();
         ApplyStarMapDebugArgs();
-        _starMapButton.Active = true;
-        _starMapButton.QueueRedraw();
+        if (_starMapButton is not null)
+        {
+            _starMapButton.Active = true;
+            _starMapButton.QueueRedraw();
+        }
     }
 
     private void OnStarMapClosed()
     {
-        _starMapButton.Active = false;
-        _starMapButton.QueueRedraw();
+        if (_starMapButton is not null)
+        {
+            _starMapButton.Active = false;
+            _starMapButton.QueueRedraw();
+        }
     }
 
     private void TuneWarpTarget(StarMapSystemEntry target)
@@ -600,6 +850,7 @@ public partial class GameRoot : Node2D
         }
 
         _hud.SetWarpTarget(target.DisplayName);
+        PreloadWarpTarget(target);
         UpdateWarpDriveVisualState(PlayerShipFrom(_snapshot));
         SyncStarMapData();
         GD.Print($"Warp engine tuned: {target.DisplayName} ({target.Id}).");
@@ -1263,6 +1514,166 @@ public partial class GameRoot : Node2D
         }
     }
 
+    private void InitializeGalaxyLife()
+    {
+        EnsureGeneratedSystemsLoaded();
+        var systems = new List<GalaxyLifeSystemRef>
+        {
+            new(SolarSystem.Sol.Id, SolarSystem.Sol.DisplayName, SolarSystem.Sol.SectorId)
+        };
+
+        foreach (var entry in _generatedSystems)
+        {
+            if (string.Equals(entry.Id, SolarSystem.Sol.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            systems.Add(new GalaxyLifeSystemRef(
+                entry.Id,
+                string.IsNullOrWhiteSpace(entry.DisplayName) ? entry.Id : entry.DisplayName,
+                entry.SectorId));
+        }
+
+        _galaxyLife = new GalaxyLifeSimulation(systems);
+        GD.Print($"Galaxy life: {_galaxyLife.Pilots.Count} persistent pilots across {systems.Count} systems.");
+    }
+
+    private void StepGalaxyLife(double delta)
+    {
+        if (_galaxyLife is null)
+        {
+            return;
+        }
+
+        _galaxyLifeAccumulator += Math.Min(delta, 0.25);
+        if (_galaxyLifeAccumulator < 1.0)
+        {
+            return;
+        }
+
+        var stepSeconds = (float)Math.Min(_galaxyLifeAccumulator, 4.0);
+        _galaxyLifeAccumulator = 0.0;
+        _galaxyLife.Step(stepSeconds, _currentSystem.Id);
+        SyncGalaxyLifeForActiveSystem();
+    }
+
+    private void SyncGalaxyLifeForActiveSystem()
+    {
+        if (_galaxyLife is null || _shipView is null)
+        {
+            return;
+        }
+
+        foreach (var pilot in _galaxyLife.ActivePilotsForSystem(_currentSystem.Id))
+        {
+            if (_pilotIdToShipId.ContainsKey(pilot.PilotId))
+            {
+                continue;
+            }
+
+            SpawnGalaxyPilot(pilot);
+        }
+
+        _snapshot = _simulation.CurrentSnapshot;
+        _previousSnapshot = _snapshot;
+    }
+
+    private void SpawnGalaxyPilot(GalaxyPilotState pilot)
+    {
+        var path = ResolveNpcShipTexturePath(pilot);
+        var texture = ShipCatalog.LoadTexture(path);
+        if (texture is null)
+        {
+            return;
+        }
+
+        var profile = ShipCatalog.VisualProfileForPath(path, texture);
+        var hitbox = new ShipHitbox(
+            profile.HitboxLocalCenter.ToCore() * profile.Scale,
+            profile.HitboxLocalSize.ToCore() * profile.Scale);
+        var boundaryRadius = Math.Max(_simulation.Config.ShipRadius, hitbox.BoundingRadius);
+        var position = SpawnPositionForPilot(pilot, boundaryRadius);
+        var rotation = RotationFacing(position, CoreVector2.Zero);
+        var shipId = _simulation.SpawnNpcShip(position, rotation, hitbox, pilot.Role, pilot.Name, pilot.ShipAssetId);
+        var view = CreateShipView(path, texture, profile);
+
+        view.Position = position.ToGodot();
+        view.Rotation = rotation;
+        AddChild(view);
+        _enemyViews[shipId] = view;
+        _shipIdToPilotId[shipId] = pilot.PilotId;
+        _pilotIdToShipId[pilot.PilotId] = shipId;
+        _npcShipTexturePaths[shipId] = path;
+
+        var explosionRadius = Math.Clamp(hitbox.BoundingRadius * 2.35f, 84f, 220f);
+        var explosionTint = RoleTint(pilot.Role, ShipCatalog.ThrustOuterColor(path));
+        _enemyExplosionRadii[shipId] = explosionRadius;
+        _enemyExplosionTints[shipId] = explosionTint;
+        _enemyExplosionVisuals[shipId] = new ShipExplosionVisual(
+            texture,
+            profile.Scale,
+            profile.ContentBounds,
+            ShipCatalog.ExhaustPortsForPath(path),
+            explosionRadius,
+            explosionTint);
+    }
+
+    private string ResolveNpcShipTexturePath(GalaxyPilotState pilot)
+    {
+        var preferred = FindShipTexturePath(pilot.ShipAssetId);
+        if (ResourceLoader.Exists(preferred))
+        {
+            return preferred;
+        }
+
+        var fallback = pilot.Role switch
+        {
+            ShipRole.Trader => "2PeopleT",
+            ShipRole.Diplomat => "2PeopleD",
+            ShipRole.Ranger => "2PeopleR",
+            ShipRole.Military => "2PeopleW",
+            ShipRole.Pirate => "2PeopleP",
+            _ => "2PeopleR"
+        };
+        return FindShipTexturePath(fallback);
+    }
+
+    private CoreVector2 SpawnPositionForPilot(GalaxyPilotState pilot, float boundaryRadius)
+    {
+        var angle = PositiveHash01(pilot.Seed) * MathF.Tau;
+        var radius = 2200f + PositiveHash01(pilot.Seed * 31 + pilot.PilotId) * 7600f;
+        var position = new CoreVector2(MathF.Cos(angle), MathF.Sin(angle)) * radius;
+        return ClampToPlayerGrid(position, boundaryRadius + 240f);
+    }
+
+    private static Color RoleTint(ShipRole role, Color fallback)
+    {
+        return role switch
+        {
+            ShipRole.Trader => new Color(0.35f, 0.95f, 0.55f, 1f),
+            ShipRole.Diplomat => new Color(0.70f, 0.82f, 1f, 1f),
+            ShipRole.Ranger => new Color(0.20f, 0.86f, 1f, 1f),
+            ShipRole.Military => new Color(1f, 0.74f, 0.22f, 1f),
+            ShipRole.Pirate => new Color(1f, 0.20f, 0.12f, 1f),
+            _ => fallback
+        };
+    }
+
+    private static float PositiveHash01(int value)
+    {
+        unchecked
+        {
+            var x = (uint)value;
+            x ^= x >> 16;
+            x *= 0x7feb352d;
+            x ^= x >> 15;
+            x *= 0x846ca68b;
+            x ^= x >> 16;
+            return (x & 0x00ffffff) / 16777215f;
+        }
+    }
+
     private void SelectStarSystem(
         StarSystemDefinition system,
         int generatedIndex,
@@ -1278,17 +1689,125 @@ public partial class GameRoot : Node2D
         _currentSystem = system;
         _generatedSystemIndex = generatedIndex;
         _warpTargetSystemId = string.Empty;
+        ClearTargetLock();
         ResetWarpChargeOnly();
         ApplyStarSystemPhysics(system);
         ResetSimulationForActiveSystem(arrivalPosition ?? SystemArrivalPosition, arrivalRotation ?? SystemArrivalRotation);
         ClearTransientVisualState();
+        SyncGalaxyLifeForActiveSystem();
         _background.SetSystem(system);
         _hud.SetSystem(system);
         _hud.SetWarpTarget(string.Empty);
         UpdateWarpDriveVisualState(PlayerShipFrom(_snapshot));
         SyncStarMapData();
         UpdateVisuals(0.0, _snapshot, SnapshotTimeSeconds(_snapshot));
+        QueueAdjacentStarSystemPreload();
         GD.Print($"Star system: {system.DisplayName} ({system.Star.DisplayName}, {system.Planets.Count} planets, background {system.Background.DisplayName}).");
+    }
+
+    private void PreloadWarpTarget(StarMapSystemEntry target)
+    {
+        if (_background is null)
+        {
+            return;
+        }
+
+        if (SameSystemId(target.Id, SolarSystem.Sol.Id))
+        {
+            _background.PreloadSystemResources(SolarSystem.Sol);
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(target.File) && StarSystemLoader.LoadSystem(target.File) is { } directSystem)
+        {
+            _background.PreloadSystemResources(directSystem);
+            return;
+        }
+
+        EnsureGeneratedSystemsLoaded();
+        for (var index = 0; index < _generatedSystems.Count; index++)
+        {
+            var entry = _generatedSystems[index];
+            if (!SameSystemId(entry.Id, target.Id) || string.IsNullOrWhiteSpace(entry.File))
+            {
+                continue;
+            }
+
+            if (StarSystemLoader.LoadSystem(entry.File) is { } system)
+            {
+                _background.PreloadSystemResources(system);
+            }
+
+            return;
+        }
+    }
+
+    private void PreloadAdjacentStarSystems()
+    {
+        if (_background is null)
+        {
+            return;
+        }
+
+        _background.PreloadSystemResources(_currentSystem);
+        if (string.Equals(_currentSystem.Id, SolarSystem.Sol.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            PreloadGeneratedSystemResources(0);
+            return;
+        }
+
+        if (_generatedSystemIndex >= 0)
+        {
+            PreloadGeneratedSystemResources(_generatedSystemIndex + 1);
+        }
+        else
+        {
+            _background.PreloadSystemResources(SolarSystem.Sol);
+        }
+    }
+
+    private void QueueAdjacentStarSystemPreload(int delayFrames = 1)
+    {
+        _adjacentPreloadQueued = true;
+        _adjacentPreloadDelayFrames = Math.Max(_adjacentPreloadDelayFrames, Math.Max(0, delayFrames));
+    }
+
+    private void RunQueuedAdjacentStarSystemPreload()
+    {
+        if (!_adjacentPreloadQueued)
+        {
+            return;
+        }
+
+        if (_adjacentPreloadDelayFrames > 0)
+        {
+            _adjacentPreloadDelayFrames--;
+            return;
+        }
+
+        _adjacentPreloadQueued = false;
+        PreloadAdjacentStarSystems();
+    }
+
+    private void PreloadGeneratedSystemResources(int index)
+    {
+        if (_background is null)
+        {
+            return;
+        }
+
+        EnsureGeneratedSystemsLoaded();
+        if ((uint)index >= (uint)_generatedSystems.Count)
+        {
+            _background.PreloadSystemResources(SolarSystem.Sol);
+            return;
+        }
+
+        var entry = _generatedSystems[index];
+        if (!string.IsNullOrWhiteSpace(entry.File) && StarSystemLoader.LoadSystem(entry.File) is { } system)
+        {
+            _background.PreloadSystemResources(system);
+        }
     }
 
     private void ApplyStarSystemPhysics(StarSystemDefinition system)
@@ -1338,6 +1857,7 @@ public partial class GameRoot : Node2D
 
     private void ClearTransientVisualState()
     {
+        ClearTargetLock();
         ClearEnemyViews();
         _explosionLayer.ClearEffects();
         _projectileImpactLayer.ClearEffects();
@@ -1352,6 +1872,7 @@ public partial class GameRoot : Node2D
 
     private void ClearEnemyViews()
     {
+        ClearTargetLock();
         foreach (var view in _enemyViews.Values)
         {
             view.QueueFree();
@@ -1361,6 +1882,9 @@ public partial class GameRoot : Node2D
         _enemyExplosionRadii.Clear();
         _enemyExplosionTints.Clear();
         _enemyExplosionVisuals.Clear();
+        _shipIdToPilotId.Clear();
+        _pilotIdToShipId.Clear();
+        _npcShipTexturePaths.Clear();
         _enemyRemovalBuffer.Clear();
         _activeEnemyIds.Clear();
         _fullQualityEnemyIds.Clear();
@@ -1482,7 +2006,7 @@ public partial class GameRoot : Node2D
 
         var spawnPosition = player.Position + aimDirection * DebugAsteroidSpawnDistance;
         var radius = AsteroidPhysics.ReferenceDiameterToWorld(_simulation.Config.AsteroidMaxReferenceDiameter) * 0.5f;
-        spawnPosition = _simulation.Bounds.Clamp(spawnPosition, radius + 80f);
+        spawnPosition = ClampToPlayerGrid(spawnPosition, radius + 80f);
 
         var toPlayer = player.Position - spawnPosition;
         var direction = toPlayer.LengthSquared() < 0.0001f
@@ -1522,7 +2046,7 @@ public partial class GameRoot : Node2D
             }
 
             var radius = AsteroidPhysics.ReferenceDiameterToWorld(_simulation.Config.AsteroidMaxReferenceDiameter) * 0.5f;
-            var spawnPosition = _simulation.Bounds.Clamp(player.Position + aimDirection * 820f, radius + 80f);
+            var spawnPosition = ClampToPlayerGrid(player.Position + aimDirection * 820f, radius + 80f);
             var asteroidId = _simulation.SpawnAsteroid(
                 spawnPosition,
                 CoreVector2.Zero,
@@ -1568,7 +2092,7 @@ public partial class GameRoot : Node2D
         var angle = 0.52f + spawnIndex * 1.618f;
         var offset = new CoreVector2(MathF.Cos(angle), MathF.Sin(angle)) * 860f;
         var boundaryRadius = Math.Max(_simulation.Config.ShipRadius, hitbox.BoundingRadius);
-        var position = _simulation.Bounds.Clamp(player.Position + offset, boundaryRadius);
+        var position = ClampToPlayerGrid(player.Position + offset, boundaryRadius);
         var rotation = RotationFacing(position, player.Position);
         var enemyId = _simulation.SpawnEnemyShip(position, rotation, hitbox);
         var enemyView = CreateShipView(path, texture, profile);
@@ -1591,6 +2115,19 @@ public partial class GameRoot : Node2D
 
         _snapshot = _simulation.CurrentSnapshot;
         _previousSnapshot = _snapshot;
+    }
+
+    private CoreVector2 ClampToPlayerGrid(CoreVector2 position, float padding)
+    {
+        var player = _snapshot.Ships.FirstOrDefault(ship => ship.Id == _simulation.PlayerShipId);
+        var referencePosition = player.Id == _simulation.PlayerShipId
+            ? player.Position
+            : position;
+        var cell = WorldGrid.CellAt(referencePosition, _simulation.Bounds);
+        var origin = WorldGrid.CellOrigin(cell, _simulation.Bounds);
+        return new CoreVector2(
+            Math.Clamp(position.X, origin.X - _simulation.Bounds.HalfWidth + padding, origin.X + _simulation.Bounds.HalfWidth - padding),
+            Math.Clamp(position.Y, origin.Y - _simulation.Bounds.HalfHeight + padding, origin.Y + _simulation.Bounds.HalfHeight - padding));
     }
 
     private void SpawnPlayerDeathExplosion(ShipState ship, Vector2 shipPosition)
@@ -1715,13 +2252,16 @@ public partial class GameRoot : Node2D
         var playerShieldRadius = Math.Max(_simulation.Config.ShipRadius, player.Hitbox.BoundingRadius);
         var lowShieldCenter = basePosition + new CoreVector2(185f, 104f) + direction * 64f;
         var lowShieldSize = new CoreVector2(118f, 88f);
+        var weapon = _simulation.Config.PrimaryWeapon;
+        var impactDamage = weapon.Damage;
+        var impactSpeed = weapon.ProjectileSpeed;
         var impacts = new[]
         {
-            new ProjectileImpactState(910001, player.Id, ProjectileImpactSurface.Shield, playerShieldCenter - direction * playerShieldRadius, direction, playerShieldCenter, playerShieldRadius, player.Hitbox.Size, player.Rotation, 0.92f, _simulation.Config.ProjectileDamage, _simulation.Config.ProjectileSpeed, ProjectileImpactKind.Projectile, 88101),
-            new ProjectileImpactState(910002, 910002, ProjectileImpactSurface.Shield, lowShieldCenter + direction * 76f, -direction, lowShieldCenter, 76f, lowShieldSize, -0.32f, 0.10f, _simulation.Config.ProjectileDamage, _simulation.Config.ProjectileSpeed, ProjectileImpactKind.Projectile, 88149),
-            new ProjectileImpactState(910003, 0, ProjectileImpactSurface.Armor, basePosition + new CoreVector2(355f, -18f), -direction, basePosition + new CoreVector2(355f, -18f), 54f, new CoreVector2(92f, 74f), 0.15f, 0f, _simulation.Config.ProjectileDamage, _simulation.Config.ProjectileSpeed, ProjectileImpactKind.Projectile, 88197),
-            new ProjectileImpactState(910004, 0, ProjectileImpactSurface.Structure, basePosition + new CoreVector2(455f, 104f), new CoreVector2(-0.35f, 0.94f), basePosition + new CoreVector2(455f, 104f), 54f, new CoreVector2(88f, 78f), -0.45f, 0f, _simulation.Config.ProjectileDamage, _simulation.Config.ProjectileSpeed, ProjectileImpactKind.Projectile, 88243),
-            new ProjectileImpactState(910005, 0, ProjectileImpactSurface.Asteroid, basePosition + new CoreVector2(570f, -72f), new CoreVector2(-0.88f, -0.24f), basePosition + new CoreVector2(570f, -72f), 86f, new CoreVector2(172f, 172f), 0f, 0f, _simulation.Config.ProjectileDamage, _simulation.Config.ProjectileSpeed, ProjectileImpactKind.Projectile, 88297)
+            new ProjectileImpactState(910001, player.Id, ProjectileImpactSurface.Shield, playerShieldCenter - direction * playerShieldRadius, direction, playerShieldCenter, playerShieldRadius, player.Hitbox.Size, player.Rotation, 0.92f, impactDamage, impactSpeed, ProjectileImpactKind.Projectile, 88101),
+            new ProjectileImpactState(910002, 910002, ProjectileImpactSurface.Shield, lowShieldCenter + direction * 76f, -direction, lowShieldCenter, 76f, lowShieldSize, -0.32f, 0.10f, impactDamage, impactSpeed, ProjectileImpactKind.Projectile, 88149),
+            new ProjectileImpactState(910003, 0, ProjectileImpactSurface.Armor, basePosition + new CoreVector2(355f, -18f), -direction, basePosition + new CoreVector2(355f, -18f), 54f, new CoreVector2(92f, 74f), 0.15f, 0f, impactDamage, impactSpeed, ProjectileImpactKind.Projectile, 88197),
+            new ProjectileImpactState(910004, 0, ProjectileImpactSurface.Structure, basePosition + new CoreVector2(455f, 104f), new CoreVector2(-0.35f, 0.94f), basePosition + new CoreVector2(455f, 104f), 54f, new CoreVector2(88f, 78f), -0.45f, 0f, impactDamage, impactSpeed, ProjectileImpactKind.Projectile, 88243),
+            new ProjectileImpactState(910005, 0, ProjectileImpactSurface.Asteroid, basePosition + new CoreVector2(570f, -72f), new CoreVector2(-0.88f, -0.24f), basePosition + new CoreVector2(570f, -72f), 86f, new CoreVector2(172f, 172f), 0f, 0f, impactDamage, impactSpeed, ProjectileImpactKind.Projectile, 88297)
         };
 
         foreach (var impact in impacts)
@@ -1920,11 +2460,11 @@ public partial class GameRoot : Node2D
         return new InputCommand(1f, 0f, strafe, turn, aim, false, true, false);
     }
 
-    private void UpdateStressTelemetry(double delta)
+    private bool UpdateStressTelemetry(double delta)
     {
         if (!_stressModeActive)
         {
-            return;
+            return false;
         }
 
         _stressElapsed += delta;
@@ -1948,10 +2488,12 @@ public partial class GameRoot : Node2D
             if (_stressQuitAfterSeconds > 0.0 && _stressElapsed >= _stressQuitAfterSeconds)
             {
                 PrintStressSummary("final");
+                _quitRequested = true;
                 GetTree().Quit();
+                return true;
             }
 
-            return;
+            return false;
         }
 
         _stressPrintElapsed = 0.0;
@@ -1959,8 +2501,12 @@ public partial class GameRoot : Node2D
         if (_stressQuitAfterSeconds > 0.0 && _stressElapsed >= _stressQuitAfterSeconds)
         {
             PrintStressSummary("final");
+            _quitRequested = true;
             GetTree().Quit();
+            return true;
         }
+
+        return false;
     }
 
     private void PrintStressSummary(string label)
@@ -2103,8 +2649,34 @@ public partial class GameRoot : Node2D
 
         if (_vfxCaptureIndex >= captureTimes.Length)
         {
-            GetTree().Quit();
+            _vfxCaptureDirectory = string.Empty;
+            RequestCaptureQuit();
         }
+    }
+
+    private void RequestCaptureQuit()
+    {
+        if (_captureQuitDelayFrames <= 0)
+        {
+            _captureQuitDelayFrames = 3;
+        }
+    }
+
+    private void UpdateDeferredCaptureQuit()
+    {
+        if (_captureQuitDelayFrames <= 0)
+        {
+            return;
+        }
+
+        _captureQuitDelayFrames--;
+        if (_captureQuitDelayFrames > 0)
+        {
+            return;
+        }
+
+        _quitRequested = true;
+        GetTree().Quit();
     }
 
     private void ConfigureFrameCapture()
@@ -2140,7 +2712,7 @@ public partial class GameRoot : Node2D
                 _frameCaptureDirectory = string.Empty;
                 if (ReadBoolUserArg("--capture-frame-quit"))
                 {
-                    GetTree().Quit();
+                    RequestCaptureQuit();
                 }
 
                 return;
@@ -2154,7 +2726,7 @@ public partial class GameRoot : Node2D
                 _frameCaptureDirectory = string.Empty;
                 if (ReadBoolUserArg("--capture-frame-quit"))
                 {
-                    GetTree().Quit();
+                    RequestCaptureQuit();
                 }
 
                 return;
@@ -2170,7 +2742,8 @@ public partial class GameRoot : Node2D
 
         if (_frameCaptureIndex >= captureTimes.Length && ReadBoolUserArg("--capture-frame-quit"))
         {
-            GetTree().Quit();
+            _frameCaptureDirectory = string.Empty;
+            RequestCaptureQuit();
         }
     }
 
@@ -2203,6 +2776,14 @@ public partial class GameRoot : Node2D
         foreach (var id in _enemyRemovalBuffer)
         {
             var view = _enemyViews[id];
+            if (_shipIdToPilotId.TryGetValue(id, out var pilotId))
+            {
+                _galaxyLife?.ReportDestroyed(pilotId);
+                _shipIdToPilotId.Remove(id);
+                _pilotIdToShipId.Remove(pilotId);
+                _npcShipTexturePaths.Remove(id);
+            }
+
             var radius = _enemyExplosionRadii.TryGetValue(id, out var storedRadius) ? storedRadius : 86f;
             var tint = _enemyExplosionTints.TryGetValue(id, out var storedTint) ? storedTint : new Color(1f, 0.55f, 0.18f, 1f);
             if (_enemyExplosionVisuals.TryGetValue(id, out var visual))
@@ -2347,6 +2928,19 @@ public partial class GameRoot : Node2D
         {
             _statusBarEnemyIds.Add(_visibleEnemyDistances[index].Id);
         }
+
+        if (_lockedTargetShipId > 0)
+        {
+            if (ContainsEnemyDistance(_drawableEnemyDistances, _lockedTargetShipId))
+            {
+                _balancedQualityEnemyIds.Add(_lockedTargetShipId);
+            }
+
+            if (ContainsEnemyDistance(_visibleEnemyDistances, _lockedTargetShipId))
+            {
+                _statusBarEnemyIds.Add(_lockedTargetShipId);
+            }
+        }
     }
 
     private WorldSnapshot InterpolateSnapshot(WorldSnapshot from, WorldSnapshot to, float amount)
@@ -2422,7 +3016,10 @@ public partial class GameRoot : Node2D
             to.Hitbox,
             InterpolateCombat(from.Combat, to.Combat, amount),
             to.Mode,
-            Lerp(from.ModeSwitchCooldown, to.ModeSwitchCooldown, amount));
+            Lerp(from.ModeSwitchCooldown, to.ModeSwitchCooldown, amount),
+            to.Role,
+            to.Callsign,
+            to.VisualId);
     }
 
     private static ProjectileState InterpolateProjectile(ProjectileState from, ProjectileState to, float amount)
@@ -2433,7 +3030,10 @@ public partial class GameRoot : Node2D
             Lerp(from.Position, to.Position, amount),
             Lerp(from.Velocity, to.Velocity, amount),
             Lerp(from.Lifetime, to.Lifetime, amount),
-            to.Damage);
+            to.Damage,
+            to.WeaponId,
+            to.DamageType,
+            Lerp(from.RangeRemaining, to.RangeRemaining, amount));
     }
 
     private static AsteroidState InterpolateAsteroid(AsteroidState from, AsteroidState to, float amount)
@@ -2747,6 +3347,19 @@ public partial class GameRoot : Node2D
         return left.DistanceSquared.CompareTo(right.DistanceSquared);
     }
 
+    private static bool ContainsEnemyDistance(IReadOnlyList<EnemyDistance> distances, int id)
+    {
+        for (var index = 0; index < distances.Count; index++)
+        {
+            if (distances[index].Id == id)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private ShipState PlayerShipFrom(WorldSnapshot snapshot)
     {
         if (snapshot.Ships.Count > 0 && snapshot.Ships[0].Id == _simulation.PlayerShipId)
@@ -2834,8 +3447,10 @@ public partial class GameRoot : Node2D
         BindKey("debug_system_next", Key.F12);
         BindKey("star_map_toggle", Key.M);
         BindKey("star_map_close", Key.Escape);
+        BindKey("music_toggle", Key.N);
         BindKey("warp_jump", Key.B);
         BindMouse("weapon_fire", MouseButton.Left);
+        BindMouse("target_lock", MouseButton.Right);
     }
 
     private static void BindKey(string action, Key key)

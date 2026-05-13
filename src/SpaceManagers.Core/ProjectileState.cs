@@ -10,6 +10,29 @@ public struct ProjectileState
     }
 
     public ProjectileState(int id, int ownerId, Vector2 position, Vector2 velocity, float lifetime, float damage)
+        : this(
+            id,
+            ownerId,
+            position,
+            velocity,
+            lifetime,
+            damage,
+            WeaponCatalog.Default.Id,
+            WeaponCatalog.Default.DamageType,
+            MathF.Max(0f, velocity.Length()) * MathF.Max(0f, lifetime))
+    {
+    }
+
+    public ProjectileState(
+        int id,
+        int ownerId,
+        Vector2 position,
+        Vector2 velocity,
+        float lifetime,
+        float damage,
+        string weaponId,
+        WeaponDamageType damageType,
+        float rangeRemaining)
     {
         Id = id;
         OwnerId = ownerId;
@@ -17,6 +40,9 @@ public struct ProjectileState
         Velocity = velocity;
         Lifetime = lifetime;
         Damage = damage;
+        WeaponId = weaponId ?? string.Empty;
+        DamageType = damageType;
+        RangeRemaining = rangeRemaining;
     }
 
     public int Id { get; set; }
@@ -25,4 +51,7 @@ public struct ProjectileState
     public Vector2 Velocity { get; set; }
     public float Lifetime { get; set; }
     public float Damage { get; set; }
+    public string WeaponId { get; set; }
+    public WeaponDamageType DamageType { get; set; }
+    public float RangeRemaining { get; set; }
 }

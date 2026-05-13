@@ -32,7 +32,10 @@ public struct ShipState
         ShipHitbox hitbox,
         CombatStats combat,
         ShipMode mode,
-        float modeSwitchCooldown)
+        float modeSwitchCooldown,
+        ShipRole role = ShipRole.Player,
+        string callsign = "",
+        string visualId = "")
     {
         Id = id;
         Position = position;
@@ -44,6 +47,9 @@ public struct ShipState
         Combat = combat;
         Mode = mode;
         ModeSwitchCooldown = modeSwitchCooldown;
+        Role = role;
+        Callsign = callsign;
+        VisualId = visualId;
     }
 
     public int Id { get; set; }
@@ -56,5 +62,8 @@ public struct ShipState
     public CombatStats Combat { get; set; }
     public ShipMode Mode { get; set; }
     public float ModeSwitchCooldown { get; set; }
+    public ShipRole Role { get; set; }
+    public string Callsign { get; set; }
+    public string VisualId { get; set; }
     public bool IsDestroyed => Combat.IsDestroyed;
 }

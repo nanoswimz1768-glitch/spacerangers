@@ -13,6 +13,7 @@ public sealed record SimulationConfig
     public float MaxSpeed { get; init; } = 500f;
     public float AfterburnerMaxSpeed { get; init; } = 1000f;
     public float AfterburnerHighSpeedAcceleration { get; init; } = 760f;
+    public WeaponDefinition PrimaryWeapon { get; init; } = WeaponCatalog.Default;
     public float ProjectileSpeed { get; init; } = 1450f;
     public float ProjectileLifetime { get; init; } = 1.35f;
     public float ProjectileDamage { get; init; } = 100f;

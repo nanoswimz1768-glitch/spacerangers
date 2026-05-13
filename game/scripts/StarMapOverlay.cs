@@ -44,6 +44,8 @@ public partial class StarMapOverlay : Control
     private Vector2 _planetPopupAnchor;
     private float _pulse;
     private Texture2D? _mapBackdropTexture;
+    private bool _mapBackdropLoadAttempted;
+    private bool _mapBackdropRequestStarted;
 
     public event Action? CloseRequested;
     public event Action<StarMapSystemEntry>? ConfirmTargetRequested;
@@ -56,8 +58,8 @@ public partial class StarMapOverlay : Control
         FocusMode = FocusModeEnum.All;
         ZIndex = 100;
         SetAnchorsPreset(LayoutPreset.FullRect);
-        _mapBackdropTexture = LoadOptionalTexture(MapBackdropPath);
-        SetProcess(true);
+        RequestMapBackdropTexture();
+        SetProcess(false);
         SetProcessInput(true);
     }
 
@@ -70,6 +72,14 @@ public partial class StarMapOverlay : Control
 
         _pulse = (_pulse + (float)delta) % 1000f;
         QueueRedraw();
+    }
+
+    public override void _ExitTree()
+    {
+        DrainMapBackdropRequest();
+        _mapBackdropTexture = null;
+        _mapBackdropLoadAttempted = true;
+        _mapBackdropRequestStarted = false;
     }
 
     public void SetSystems(IReadOnlyList<StarMapSystemEntry> systems, string currentSystemId, string tunedSystemId)
@@ -90,6 +100,7 @@ public partial class StarMapOverlay : Control
     public void Open()
     {
         Visible = true;
+        SetProcess(true);
         if (IsInsideTree())
         {
             GrabFocus();
@@ -101,6 +112,7 @@ public partial class StarMapOverlay : Control
     public void Close()
     {
         Visible = false;
+        SetProcess(false);
         _rightMouseHeld = false;
         _planetPopupEntry = null;
         CloseRequested?.Invoke();
@@ -600,6 +612,7 @@ public partial class StarMapOverlay : Control
 
     private void DrawMapBackground()
     {
+        EnsureMapBackdropTexture();
         DrawRect(_mapRect, new Color(0f, 0.012f, 0.026f, 0.97f), true);
         if (_mapBackdropTexture is not null)
         {
@@ -1510,20 +1523,68 @@ public partial class StarMapOverlay : Control
         return new Color(color.R, color.G, color.B, Math.Clamp(alpha, 0f, 1f));
     }
 
-    private static Texture2D? LoadOptionalTexture(string resourcePath)
+    private void EnsureMapBackdropTexture()
     {
-        if (!ResourceLoader.Exists(resourcePath))
+        if (_mapBackdropTexture is not null || _mapBackdropLoadAttempted)
         {
-            return null;
+            return;
         }
 
+        if (!ResourceLoader.Exists(MapBackdropPath))
+        {
+            _mapBackdropLoadAttempted = true;
+            return;
+        }
+
+        RequestMapBackdropTexture();
+        var status = ResourceLoader.LoadThreadedGetStatus(MapBackdropPath);
+        if (status == ResourceLoader.ThreadLoadStatus.Loaded)
+        {
+            _mapBackdropTexture = ResourceLoader.LoadThreadedGet(MapBackdropPath) as Texture2D;
+            _mapBackdropLoadAttempted = true;
+        }
+        else if (status == ResourceLoader.ThreadLoadStatus.Failed)
+        {
+            _mapBackdropLoadAttempted = true;
+        }
+    }
+
+    private void RequestMapBackdropTexture()
+    {
+        if (_mapBackdropRequestStarted || !ResourceLoader.Exists(MapBackdropPath))
+        {
+            return;
+        }
+
+        var error = ResourceLoader.LoadThreadedRequest(MapBackdropPath, "Texture2D", useSubThreads: true, cacheMode: ResourceLoader.CacheMode.Reuse);
+        if (error == Error.Ok)
+        {
+            _mapBackdropRequestStarted = true;
+        }
+        else
+        {
+            _mapBackdropLoadAttempted = true;
+        }
+    }
+
+    private static void DrainMapBackdropRequest()
+    {
         try
         {
-            return ResourceLoader.Load<Texture2D>(resourcePath);
+            if (!ResourceLoader.Exists(MapBackdropPath))
+            {
+                return;
+            }
+
+            var status = ResourceLoader.LoadThreadedGetStatus(MapBackdropPath);
+            if (status is ResourceLoader.ThreadLoadStatus.Loaded or ResourceLoader.ThreadLoadStatus.InProgress)
+            {
+                _ = ResourceLoader.LoadThreadedGet(MapBackdropPath);
+            }
         }
         catch
         {
-            return null;
+            // Shutdown cleanup only; the overlay can safely fall back to procedural map space.
         }
     }
 

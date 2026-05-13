@@ -6,17 +6,19 @@ namespace SpaceManagersPrototype;
 
 public partial class HudOverlay : Control
 {
-    private const float BottomPanelHeight = 52f;
+    private const float BottomPanelHeight = 60f;
     private const float PanelPadding = 12f;
-    private const float StatusBlockWidth = 294f;
-    private const float RightBlockWidth = 252f;
-    private const float EquipmentSlotSize = 18f;
-    private const float EquipmentSlotGap = 6f;
-    private const float CombatMeterWidth = 82f;
+    private const float StatusBlockWidth = 328f;
+    private const float RightBlockWidth = 284f;
+    private const float EquipmentSlotSize = 20f;
+    private const float EquipmentSlotGap = 7f;
+    private const float CombatMeterWidth = 94f;
     private const float CombatMeterGap = 10f;
-    private const float MinimapWidth = 264f;
-    private const float MinimapHeight = 204f;
+    private const float MinimapWidth = 360f;
+    private const float MinimapHeight = 270f;
     private const float MinimapMargin = 10f;
+    private const float TargetPanelWidth = 286f;
+    private const float TargetPanelHeight = 154f;
 
     private readonly Color _panel = new(0.01f, 0.19f, 0.29f, 0.78f);
     private readonly Color _panelBright = new(0.03f, 0.58f, 0.78f, 0.88f);
@@ -38,7 +40,7 @@ public partial class HudOverlay : Control
     private readonly Vector2[] _mapAsteroidShape = new Vector2[8];
     private readonly Vector2[] _mapAsteroidFacet = new Vector2[3];
     private readonly Vector2[] _mapPlayerMarker = new Vector2[4];
-    private readonly Vector2[] _mapVelocityArrow = new Vector2[3];
+    private readonly Vector2[] _mapNpcMarker = new Vector2[4];
     private readonly SimulationConfig _asteroidTrajectoryConfig = new();
     private WorldSnapshot? _snapshot;
     private StarSystemDefinition _system = SolarSystem.Sol;
@@ -53,6 +55,10 @@ public partial class HudOverlay : Control
     private bool _warpTransit;
     private bool _playerGodMode;
     private float _systemTimeSeconds;
+    private bool _hasTargetLock;
+    private bool _targetHostile;
+    private ShipState _targetLock;
+    private ShipState _targetPlayer;
 
     public override void _Ready()
     {
@@ -109,10 +115,20 @@ public partial class HudOverlay : Control
         QueueRedraw();
     }
 
+    public void SetTargetLockState(bool hasTarget, ShipState target, ShipState player, bool hostile)
+    {
+        _hasTargetLock = hasTarget && target.Id != 0 && !target.IsDestroyed;
+        _targetLock = target;
+        _targetPlayer = player;
+        _targetHostile = hostile;
+        QueueRedraw();
+    }
+
     public override void _Draw()
     {
         var size = GetViewportRect().Size;
         DrawBottomPanel(size);
+        DrawTargetPanel(size);
         DrawMinimap(size);
     }
 
@@ -131,17 +147,19 @@ public partial class HudOverlay : Control
         var rightX = size.X - RightBlockWidth + 18f;
         var meterX = leftX;
 
-        _shield.Position = new Vector2(meterX, panelTop + 6f);
-        _armor.Position = new Vector2(meterX + CombatMeterWidth + CombatMeterGap, panelTop + 6f);
-        _structure.Position = new Vector2(meterX + (CombatMeterWidth + CombatMeterGap) * 2f, panelTop + 6f);
-        _speed.Position = new Vector2(leftX, panelTop + 35f);
-        _coords.Position = new Vector2(leftX + 86f, panelTop + 35f);
-        _mode.Position = new Vector2(centerX - 120f, panelTop + 7f);
-        _ship.Position = new Vector2(rightX, panelTop + 13f);
-        _weapon.Position = new Vector2(rightX, panelTop + 31f);
+        _shield.Position = new Vector2(meterX, panelTop + 8f);
+        _armor.Position = new Vector2(meterX + CombatMeterWidth + CombatMeterGap, panelTop + 8f);
+        _structure.Position = new Vector2(meterX + (CombatMeterWidth + CombatMeterGap) * 2f, panelTop + 8f);
+        _speed.Position = new Vector2(leftX, panelTop + 41f);
+        _coords.Position = new Vector2(leftX + 104f, panelTop + 41f);
+        _mode.Position = new Vector2(centerX - 124f, panelTop + 9f);
+        _ship.Position = new Vector2(rightX, panelTop + 14f);
+        _weapon.Position = new Vector2(rightX, panelTop + 34f);
         var minimapLeft = size.X - MinimapWidth - MinimapMargin;
-        _fps.Position = new Vector2(Math.Max(PanelPadding, minimapLeft - 76f), 8f);
-        _godMode.Position = new Vector2(Math.Max(PanelPadding, minimapLeft - 128f), 24f);
+        var targetPanelLeft = Math.Max(PanelPadding, minimapLeft - TargetPanelWidth - 12f);
+        var telemetryX = _hasTargetLock ? targetPanelLeft - 78f : minimapLeft - 76f;
+        _fps.Position = new Vector2(Math.Max(PanelPadding, telemetryX), 8f);
+        _godMode.Position = new Vector2(Math.Max(PanelPadding, telemetryX - 52f), 24f);
         _systemName.Position = new Vector2(minimapLeft + 8f, MinimapMargin + MinimapHeight + 5f);
         _warpTarget.Position = new Vector2(minimapLeft + 8f, MinimapMargin + MinimapHeight + 22f);
 
@@ -155,7 +173,9 @@ public partial class HudOverlay : Control
             : new Color(0.72f, 0.9f, 1f, 0.78f));
 
         _speed.Text = $"SPD {ship.Velocity.Length(),3:0}";
-        _coords.Text = $"X {ship.Position.X,5:0} Y {ship.Position.Y,5:0}";
+        var gridCell = WorldGrid.CellAt(ship.Position, _snapshot.Bounds);
+        var gridLocal = WorldGrid.LocalPosition(ship.Position, _snapshot.Bounds);
+        _coords.Text = $"G {SignedGridIndex(gridCell.X)},{SignedGridIndex(gridCell.Y)} X {gridLocal.X,5:0} Y {gridLocal.Y,5:0}";
         _mode.Text = $"{mode}  {swap}";
         _warpTarget.Text = string.IsNullOrWhiteSpace(_warpTargetName)
             ? "WARP --"
@@ -188,6 +208,11 @@ public partial class HudOverlay : Control
         return ship.WeaponCooldown <= 0f ? "RDY" : ship.WeaponCooldown.ToString("0.00");
     }
 
+    private static string SignedGridIndex(int value)
+    {
+        return value > 0 ? $"+{value}" : value.ToString();
+    }
+
     private void DrawBottomPanel(Vector2 size)
     {
         var y = size.Y - BottomPanelHeight;
@@ -209,16 +234,16 @@ public partial class HudOverlay : Control
         _rightWing[3] = new Vector2(size.X - 76f, size.Y);
         DrawColoredPolygon(_rightWing, new Color(0.02f, 0.42f, 0.58f, 0.82f));
 
-        DrawHudBlock(new Rect2(10f, y + 6f, StatusBlockWidth, 40f), new Color(0f, 0.08f, 0.12f, 0.28f));
-        DrawHudBlock(new Rect2(size.X - RightBlockWidth - 10f, y + 6f, RightBlockWidth, 40f), new Color(0f, 0.08f, 0.12f, 0.26f));
+        DrawHudBlock(new Rect2(10f, y + 7f, StatusBlockWidth, 46f), new Color(0f, 0.08f, 0.12f, 0.28f));
+        DrawHudBlock(new Rect2(size.X - RightBlockWidth - 10f, y + 7f, RightBlockWidth, 46f), new Color(0f, 0.08f, 0.12f, 0.26f));
 
         var slotsWidth = 7f * EquipmentSlotSize + 6f * EquipmentSlotGap;
         var slotsStart = size.X * 0.5f - slotsWidth * 0.5f;
         for (var i = 0; i < 7; i++)
         {
             var x = slotsStart + i * (EquipmentSlotSize + EquipmentSlotGap);
-            DrawRect(new Rect2(x, y + 29f, EquipmentSlotSize, 14f), new Color(0.03f, 0.35f, 0.48f, 0.62f), true);
-            DrawRect(new Rect2(x, y + 29f, EquipmentSlotSize, 14f), new Color(0.2f, 0.9f, 1f, 0.28f), false, 1f);
+            DrawRect(new Rect2(x, y + 35f, EquipmentSlotSize, 16f), new Color(0.03f, 0.35f, 0.48f, 0.62f), true);
+            DrawRect(new Rect2(x, y + 35f, EquipmentSlotSize, 16f), new Color(0.2f, 0.9f, 1f, 0.28f), false, 1f);
         }
 
         DrawCombatBars(y);
@@ -239,7 +264,7 @@ public partial class HudOverlay : Control
         }
 
         var ship = PlayerShip();
-        var origin = new Vector2(20f, panelTop + 23f);
+        var origin = new Vector2(20f, panelTop + 28f);
         DrawMeter(origin, CombatMeterWidth, ship.Combat.Shield, ship.Combat.MaxShield, new Color(0.20f, 0.82f, 1f, 0.94f));
         DrawMeter(origin + new Vector2(CombatMeterWidth + CombatMeterGap, 0f), CombatMeterWidth, ship.Combat.Armor, ship.Combat.MaxArmor, new Color(1f, 0.72f, 0.22f, 0.94f));
         DrawMeter(origin + new Vector2((CombatMeterWidth + CombatMeterGap) * 2f, 0f), CombatMeterWidth, ship.Combat.Structure, ship.Combat.MaxStructure, new Color(0.96f, 0.24f, 0.22f, 0.94f));
@@ -248,9 +273,9 @@ public partial class HudOverlay : Control
     private void DrawMeter(Vector2 position, float width, float value, float maxValue, Color color)
     {
         var ratio = maxValue <= 0f ? 0f : Math.Clamp(value / maxValue, 0f, 1f);
-        var rect = new Rect2(position, new Vector2(width, 5f));
+        var rect = new Rect2(position, new Vector2(width, 6f));
         DrawRect(rect, new Color(0f, 0.04f, 0.06f, 0.82f), true);
-        DrawRect(new Rect2(position, new Vector2(width * ratio, 5f)), color, true);
+        DrawRect(new Rect2(position, new Vector2(width * ratio, 6f)), color, true);
         DrawRect(rect, new Color(0.22f, 0.92f, 1f, 0.22f), false, 1f);
     }
 
@@ -286,9 +311,72 @@ public partial class HudOverlay : Control
                     ? "WARP CALIBRATING"
                     : "WARP HOLD";
         var percent = $"{_warpChargeRatio * 100f,3:0}%";
-        DrawString(font, PixelSnap(position + new Vector2(0f, -3f)), label, HorizontalAlignment.Left, width * 0.68f, 10, WithAlpha(color, 0.92f));
-        var percentWidth = font?.GetStringSize(percent, HorizontalAlignment.Left, -1f, 10).X ?? 28f;
-        DrawString(font, PixelSnap(position + new Vector2(width - percentWidth, -3f)), percent, HorizontalAlignment.Left, -1f, 10, WithAlpha(color, 0.92f));
+        DrawString(font, PixelSnap(position + new Vector2(0f, -4f)), label, HorizontalAlignment.Left, width * 0.68f, 12, WithAlpha(color, 0.92f));
+        var percentWidth = font?.GetStringSize(percent, HorizontalAlignment.Left, -1f, 12).X ?? 34f;
+        DrawString(font, PixelSnap(position + new Vector2(width - percentWidth, -4f)), percent, HorizontalAlignment.Left, -1f, 12, WithAlpha(color, 0.92f));
+    }
+
+    private void DrawTargetPanel(Vector2 size)
+    {
+        if (!_hasTargetLock)
+        {
+            return;
+        }
+
+        var mapLeft = size.X - MinimapWidth - MinimapMargin;
+        var panelWidth = Math.Min(TargetPanelWidth, Math.Max(230f, mapLeft - PanelPadding * 2f));
+        if (panelWidth <= 210f)
+        {
+            return;
+        }
+
+        var origin = new Vector2(Math.Max(PanelPadding, mapLeft - panelWidth - 12f), MinimapMargin);
+        var rect = new Rect2(origin, new Vector2(panelWidth, TargetPanelHeight));
+        var accent = TargetHudColor(_targetLock, _targetHostile);
+        var font = GetThemeDefaultFont();
+
+        DrawRect(rect, new Color(0f, 0.035f, 0.052f, 0.86f), true);
+        DrawRect(rect, WithAlpha(accent, _targetHostile ? 0.70f : 0.52f), false, 1.4f);
+        DrawRect(rect.Grow(-3f), new Color(0.14f, 0.92f, 1f, 0.08f), false, 1f);
+        DrawLine(origin + new Vector2(0f, 28f), origin + new Vector2(panelWidth, 28f), WithAlpha(accent, 0.28f), 1f, true);
+
+        var name = TargetDisplayName(_targetLock);
+        var role = RoleLabel(_targetLock.Role);
+        var mode = _targetLock.Mode == ShipMode.Combat ? "COMBAT" : "NAV";
+        var distance = CoreVector2.Distance(_targetLock.Position, _targetPlayer.Position);
+        var speed = _targetLock.Velocity.Length();
+        var relation = _targetHostile ? "HOSTILE" : "NEUTRAL";
+
+        DrawCircle(origin + new Vector2(14f, 14f), 5.6f, WithAlpha(accent, 0.22f));
+        DrawCircle(origin + new Vector2(14f, 14f), 3.2f, accent);
+        DrawString(font, PixelSnap(origin + new Vector2(27f, 20f)), "TARGET LOCK", HorizontalAlignment.Left, panelWidth - 36f, 13, WithAlpha(accent, 0.92f));
+        DrawString(font, PixelSnap(origin + new Vector2(14f, 50f)), name, HorizontalAlignment.Left, panelWidth - 28f, 14, new Color(0.82f, 1f, 0.96f, 0.96f));
+
+        DrawTargetLine(font, origin + new Vector2(14f, 74f), "ROLE", role, accent, panelWidth);
+        DrawTargetLine(font, origin + new Vector2(14f, 95f), "STATE", $"{relation} / {mode}", accent, panelWidth);
+        DrawTargetLine(font, origin + new Vector2(14f, 116f), "DIST", $"{distance:0} u", accent, panelWidth);
+        DrawTargetLine(font, origin + new Vector2(panelWidth * 0.54f, 116f), "SPD", $"{speed:0}", accent, panelWidth * 0.46f - 14f);
+
+        var meterTop = origin + new Vector2(14f, 132f);
+        var meterWidth = (panelWidth - 42f) / 3f;
+        DrawTargetMeter(meterTop, meterWidth, _targetLock.Combat.Shield, _targetLock.Combat.MaxShield, new Color(0.20f, 0.82f, 1f, 0.92f));
+        DrawTargetMeter(meterTop + new Vector2(meterWidth + 7f, 0f), meterWidth, _targetLock.Combat.Armor, _targetLock.Combat.MaxArmor, new Color(1f, 0.68f, 0.22f, 0.92f));
+        DrawTargetMeter(meterTop + new Vector2((meterWidth + 7f) * 2f, 0f), meterWidth, _targetLock.Combat.Structure, _targetLock.Combat.MaxStructure, new Color(1f, 0.22f, 0.18f, 0.92f));
+    }
+
+    private void DrawTargetLine(Font? font, Vector2 position, string label, string value, Color accent, float width)
+    {
+        DrawString(font, PixelSnap(position), label, HorizontalAlignment.Left, Math.Min(64f, width * 0.36f), 12, new Color(0.52f, 0.74f, 0.82f, 0.84f));
+        DrawString(font, PixelSnap(position + new Vector2(64f, 0f)), value, HorizontalAlignment.Left, Math.Max(24f, width - 66f), 12, WithAlpha(MixColors(accent, Colors.White, 0.62f), 0.92f));
+    }
+
+    private void DrawTargetMeter(Vector2 position, float width, float value, float maxValue, Color color)
+    {
+        var ratio = maxValue <= 0f ? 0f : Math.Clamp(value / maxValue, 0f, 1f);
+        var rect = new Rect2(position, new Vector2(width, 6f));
+        DrawRect(rect, new Color(0f, 0.018f, 0.026f, 0.88f), true);
+        DrawRect(new Rect2(position, new Vector2(width * ratio, 6f)), color, true);
+        DrawRect(rect, WithAlpha(color, 0.34f), false, 1f);
     }
 
     private void DrawMinimap(Vector2 size)
@@ -310,33 +398,44 @@ public partial class HudOverlay : Control
         var center = mapPos + mapSize * 0.5f;
         var scale = Math.Min(mapSize.X / (_snapshot.Bounds.HalfWidth * 2f), mapSize.Y / (_snapshot.Bounds.HalfHeight * 2f));
         var time = _systemTimeSeconds;
+        var player = PlayerShip();
+        var activeCell = WorldGrid.CellAt(player.Position, _snapshot.Bounds);
+        var activeOrigin = WorldGrid.CellOrigin(activeCell, _snapshot.Bounds);
+        var activeCellIsPrimary = activeCell.X == 0 && activeCell.Y == 0;
 
-        var starColor = _system.Star.MapColor;
-        var starRadius = MinimapStarRadius(_system.Star);
-        DrawCircle(center, starRadius + 3.2f, new Color(starColor.R, starColor.G, starColor.B, 0.14f));
-        DrawCircle(center, starRadius, starColor);
-        DrawCircle(center, Math.Max(1.6f, starRadius * 0.34f), new Color(1f, 0.95f, 0.62f, 0.92f));
-        foreach (var planet in _system.Planets)
+        if (activeCellIsPrimary)
         {
-            var orbitRadius = planet.OrbitRadius * scale;
-            var alpha = planet.OrbitRadius < 3200f ? 0.34f : 0.22f;
-            DrawMapOrbit(center, orbitRadius, 144, new Color(0.18f, 0.95f, 0.82f, alpha), mapRect);
+            var starColor = _system.Star.MapColor;
+            var starRadius = MinimapStarRadius(_system.Star);
+            DrawCircle(center, starRadius + 3.2f, new Color(starColor.R, starColor.G, starColor.B, 0.14f));
+            DrawCircle(center, starRadius, starColor);
+            DrawCircle(center, Math.Max(1.6f, starRadius * 0.34f), new Color(1f, 0.95f, 0.62f, 0.92f));
+            foreach (var planet in _system.Planets)
+            {
+                var orbitRadius = planet.OrbitRadius * scale;
+                var alpha = planet.OrbitRadius < 3200f ? 0.34f : 0.22f;
+                DrawMapOrbit(center, orbitRadius, 144, new Color(0.18f, 0.95f, 0.82f, alpha), mapRect);
+            }
+
+            foreach (var planet in _system.Planets)
+            {
+                var local = SolarSystem.PositionAt(planet, time) * scale;
+                var radius = MinimapPlanetRadius(planet);
+                DrawCircle(center + local, radius + 1.7f, new Color(planet.MapColor.R, planet.MapColor.G, planet.MapColor.B, 0.22f));
+                DrawCircle(center + local, radius, planet.MapColor);
+                DrawCircle(center + local, Math.Max(0.9f, radius * 0.34f), new Color(1f, 1f, 1f, 0.30f));
+            }
         }
 
-        foreach (var planet in _system.Planets)
-        {
-            var local = SolarSystem.PositionAt(planet, time) * scale;
-            var radius = MinimapPlanetRadius(planet);
-            DrawCircle(center + local, radius + 1.7f, new Color(planet.MapColor.R, planet.MapColor.G, planet.MapColor.B, 0.22f));
-            DrawCircle(center + local, radius, planet.MapColor);
-            DrawCircle(center + local, Math.Max(0.9f, radius * 0.34f), new Color(1f, 1f, 1f, 0.30f));
-        }
+        DrawAsteroidsOnMinimap(center, scale, mapRect, activeOrigin, activeCellIsPrimary);
 
-        DrawAsteroidsOnMinimap(center, scale, mapRect);
-
+        ShipState playerMarkerShip = default;
+        Vector2 playerMarkerPosition = default;
+        var hasPlayerMarker = false;
         foreach (var ship in _snapshot.Ships)
         {
-            var local = new Vector2(ship.Position.X * scale, ship.Position.Y * scale);
+            var localWorld = ship.Position - activeOrigin;
+            var local = new Vector2(localWorld.X * scale, localWorld.Y * scale);
             var position = center + local;
             if (!mapRect.HasPoint(position))
             {
@@ -345,17 +444,23 @@ public partial class HudOverlay : Control
 
             if (ship.Id == _playerId)
             {
-                DrawPlayerVelocityVector(ship, position, scale, mapRect);
-                DrawPlayerMinimapMarker(ship, position);
+                playerMarkerShip = ship;
+                playerMarkerPosition = position;
+                hasPlayerMarker = true;
             }
             else
             {
-                DrawCircle(position, 4.8f, new Color(1f, 0.34f, 0.20f, 0.22f));
-                DrawCircle(position, 2.7f, new Color(1f, 0.42f, 0.28f, 0.95f));
+                DrawNpcMinimapMarker(ship, position, MinimapShipPaletteColor(ship));
             }
         }
 
-        var aim = center + new Vector2(_aimWorld.X * scale, _aimWorld.Y * scale);
+        if (hasPlayerMarker)
+        {
+            DrawPlayerMinimapMarker(playerMarkerShip, playerMarkerPosition);
+        }
+
+        var aimWorld = _aimWorld - activeOrigin;
+        var aim = center + new Vector2(aimWorld.X * scale, aimWorld.Y * scale);
         if (mapRect.HasPoint(aim))
         {
             DrawCircle(aim, 3.1f, new Color(1f, 0.9f, 0.3f, 0.24f));
@@ -363,7 +468,7 @@ public partial class HudOverlay : Control
         }
     }
 
-    private void DrawAsteroidsOnMinimap(Vector2 center, float scale, Rect2 mapRect)
+    private void DrawAsteroidsOnMinimap(Vector2 center, float scale, Rect2 mapRect, CoreVector2 activeOrigin, bool useSolarTrajectories)
     {
         if (_snapshot is null || _snapshot.Asteroids.Count == 0)
         {
@@ -377,7 +482,13 @@ public partial class HudOverlay : Control
                 continue;
             }
 
-            DrawAsteroidTrajectory(center, scale, mapRect, asteroid);
+            var localWorld = asteroid.Position - activeOrigin;
+            if (!AsteroidBelongsToActiveVisualCell(localWorld, asteroid.Radius, _snapshot.Bounds))
+            {
+                continue;
+            }
+
+            DrawAsteroidTrajectory(center, scale, mapRect, asteroid, activeOrigin, useSolarTrajectories);
         }
 
         foreach (var asteroid in _snapshot.Asteroids)
@@ -387,7 +498,13 @@ public partial class HudOverlay : Control
                 continue;
             }
 
-            var local = new Vector2(asteroid.Position.X * scale, asteroid.Position.Y * scale);
+            var localWorld = asteroid.Position - activeOrigin;
+            if (!AsteroidBelongsToActiveVisualCell(localWorld, asteroid.Radius, _snapshot.Bounds))
+            {
+                continue;
+            }
+
+            var local = new Vector2(localWorld.X * scale, localWorld.Y * scale);
             var position = center + local;
             if (!mapRect.HasPoint(position))
             {
@@ -399,6 +516,15 @@ public partial class HudOverlay : Control
             var radius = Math.Clamp(1.5f + MathF.Sqrt(Math.Max(1f, asteroid.Radius)) * 0.13f, 2.0f, 4.8f);
             DrawAsteroidMinimapIcon(asteroid, position, radius, color, heat);
         }
+    }
+
+    private static bool AsteroidBelongsToActiveVisualCell(CoreVector2 localWorld, float radius, WorldBounds bounds)
+    {
+        var margin = radius + 1800f;
+        return localWorld.X >= -bounds.HalfWidth - margin
+            && localWorld.X <= bounds.HalfWidth + margin
+            && localWorld.Y >= -bounds.HalfHeight - margin
+            && localWorld.Y <= bounds.HalfHeight + margin;
     }
 
     private static float MinimapStarRadius(StarDefinition star)
@@ -413,55 +539,123 @@ public partial class HudOverlay : Control
         return Math.Clamp(1.45f + ratio * 1.55f, 2.2f, 4.8f);
     }
 
-    private void DrawPlayerVelocityVector(ShipState ship, Vector2 position, float scale, Rect2 mapRect)
+    private static Color MinimapShipPaletteColor(ShipState ship)
     {
-        var velocity = new Vector2(ship.Velocity.X, ship.Velocity.Y);
-        var speed = velocity.Length();
-        if (speed < 20f)
+        if (!string.IsNullOrWhiteSpace(ship.VisualId))
         {
+            return WithAlpha(ShipCatalog.ThrustOuterColor(ship.VisualId), 0.96f);
+        }
+
+        return ship.Role switch
+        {
+            ShipRole.Trader => new Color(0.38f, 0.96f, 0.56f, 0.96f),
+            ShipRole.Diplomat => new Color(0.72f, 0.86f, 1f, 0.96f),
+            ShipRole.Ranger => new Color(0.18f, 0.88f, 1f, 0.96f),
+            ShipRole.Military => new Color(1f, 0.74f, 0.22f, 0.96f),
+            ShipRole.Pirate => new Color(1f, 0.22f, 0.12f, 0.96f),
+            _ => new Color(1f, 0.42f, 0.28f, 0.96f)
+        };
+    }
+
+    private static Color TargetHudColor(ShipState ship, bool hostile)
+    {
+        if (hostile)
+        {
+            return new Color(1f, 0.18f, 0.10f, 1f);
+        }
+
+        return ship.Role == ShipRole.Ranger
+            ? new Color(0.66f, 1f, 0.96f, 1f)
+            : new Color(0.76f, 0.94f, 1f, 1f);
+    }
+
+    private static string TargetDisplayName(ShipState ship)
+    {
+        if (!string.IsNullOrWhiteSpace(ship.Callsign))
+        {
+            return ship.Callsign;
+        }
+
+        return !string.IsNullOrWhiteSpace(ship.VisualId)
+            ? ship.VisualId
+            : $"Ship {ship.Id}";
+    }
+
+    private static string RoleLabel(ShipRole role)
+    {
+        return role switch
+        {
+            ShipRole.Trader => "TRADER",
+            ShipRole.Diplomat => "DIPLOMAT",
+            ShipRole.Ranger => "RANGER",
+            ShipRole.Military => "MILITARY",
+            ShipRole.Pirate => "PIRATE",
+            _ => "SHIP"
+        };
+    }
+
+    private void DrawNpcMinimapMarker(ShipState ship, Vector2 position, Color palette)
+    {
+        var forward = ForwardFromRotation(ship.Rotation);
+        var right = new Vector2(-forward.Y, forward.X);
+        var glow = WithAlpha(palette, ship.Role == ShipRole.Pirate ? 0.15f : 0.10f);
+        var outline = WithAlpha(palette, ship.Role == ShipRole.Pirate ? 0.86f : 0.72f);
+        var core = string.IsNullOrWhiteSpace(ship.VisualId)
+            ? WithAlpha(MixColors(palette, Colors.White, 0.45f), 0.82f)
+            : WithAlpha(ShipCatalog.ThrustCoreColor(ship.VisualId), 0.82f);
+
+        DrawCircle(position, ship.Role == ShipRole.Pirate ? 4.6f : 3.9f, glow);
+        DrawCircle(position, 2.25f, new Color(0f, 0.025f, 0.035f, 0.82f));
+        DrawCircle(position, 1.28f, core);
+        DrawLine(position + forward * 1.9f, position + forward * 5.2f, outline, 0.82f, true);
+
+        if (ship.Role == ShipRole.Pirate)
+        {
+            DrawLine(position - forward * 2.6f - right * 3.0f, position - right * 4.4f, outline, 0.82f, true);
+            DrawLine(position - forward * 2.6f + right * 3.0f, position + right * 4.4f, outline, 0.82f, true);
             return;
         }
 
-        var direction = velocity / speed;
-        var length = Math.Clamp(speed * scale * 2.75f, 8f, 30f);
-        var end = ClampToRect(position + direction * length, mapRect.Grow(-5f));
-        if (position.DistanceSquaredTo(end) < 12f)
+        switch (ship.Role)
         {
-            return;
+            case ShipRole.Trader:
+                DrawLine(position - forward * 2.2f - right * 1.8f, position - forward * 2.2f + right * 1.8f, WithAlpha(core, 0.58f), 0.72f, true);
+                break;
+            case ShipRole.Diplomat:
+                DrawArc(position, 3.4f, 0.25f, MathF.Tau - 0.25f, 14, WithAlpha(palette, 0.42f), 0.72f, true);
+                break;
+            case ShipRole.Ranger:
+                DrawLine(position - right * 2.6f, position + right * 2.6f, WithAlpha(core, 0.48f), 0.68f, true);
+                break;
+            case ShipRole.Military:
+                _mapNpcMarker[0] = position + forward * 3.1f;
+                _mapNpcMarker[1] = position + right * 2.3f;
+                _mapNpcMarker[2] = position - forward * 3.1f;
+                _mapNpcMarker[3] = position - right * 2.3f;
+                DrawClosedPolyline(_mapNpcMarker, WithAlpha(core, 0.50f), 0.66f);
+                break;
         }
-
-        var tangent = new Vector2(-direction.Y, direction.X);
-        DrawLine(position, end, new Color(0.18f, 0.10f, 0.02f, 0.70f), 3.4f, true);
-        DrawLine(position, end, new Color(1f, 0.70f, 0.18f, 0.84f), 1.25f, true);
-        DrawLine(position + direction * 2.2f, end, new Color(1f, 0.96f, 0.62f, 0.34f), 0.65f, true);
-
-        _mapVelocityArrow[0] = end;
-        _mapVelocityArrow[1] = end - direction * 5.8f + tangent * 3.2f;
-        _mapVelocityArrow[2] = end - direction * 5.8f - tangent * 3.2f;
-        DrawColoredPolygon(_mapVelocityArrow, new Color(1f, 0.74f, 0.22f, 0.90f));
     }
 
     private void DrawPlayerMinimapMarker(ShipState ship, Vector2 position)
     {
-        var forward = new Vector2(MathF.Sin(ship.Rotation), -MathF.Cos(ship.Rotation));
-        if (forward.LengthSquared() <= 0.001f)
-        {
-            forward = Vector2.Up;
-        }
-        else
-        {
-            forward = forward.Normalized();
-        }
-
+        var forward = ForwardFromRotation(ship.Rotation);
         var right = new Vector2(-forward.Y, forward.X);
-        SetPlayerMarkerPoints(position, forward, right, 0.78f);
-        DrawColoredPolygon(_mapPlayerMarker, new Color(0.20f, 0.105f, 0.015f, 0.92f));
-        DrawPolyline(_mapPlayerMarker, new Color(1f, 0.76f, 0.22f, 0.96f), 1.05f, true);
-        DrawLine(_mapPlayerMarker[^1], _mapPlayerMarker[0], new Color(1f, 0.76f, 0.22f, 0.96f), 1.05f, true);
+        var noseAngle = MathF.Atan2(forward.Y, forward.X);
+        DrawCircle(position, 10.8f, new Color(0.06f, 0.90f, 1f, 0.10f));
+        DrawCircle(position, 7.3f, new Color(1f, 0.70f, 0.16f, 0.12f));
+        for (var segment = 0; segment < 4; segment++)
+        {
+            var start = segment * MathF.PI * 0.5f + 0.16f;
+            DrawArc(position, 8.1f, start, start + 0.78f, 8, new Color(0.15f, 0.98f, 1f, 0.70f), 1.05f, true);
+        }
+        DrawArc(position, 5.4f, noseAngle - 0.84f, noseAngle + 0.84f, 12, new Color(1f, 0.76f, 0.22f, 0.80f), 0.92f, true);
 
         SetPlayerMarkerPoints(position, forward, right, 0.52f);
-        DrawColoredPolygon(_mapPlayerMarker, new Color(1f, 0.56f, 0.08f, 0.94f));
-        DrawLine(position - forward * 1.3f, position + forward * 3.5f, new Color(1f, 0.96f, 0.58f, 0.68f), 0.75f, true);
+        DrawColoredPolygon(_mapPlayerMarker, new Color(0.03f, 0.02f, 0.01f, 0.90f));
+        DrawClosedPolyline(_mapPlayerMarker, new Color(1f, 0.78f, 0.24f, 0.92f), 0.95f);
+        DrawLine(position + forward * 1.2f, position + forward * 6.2f, new Color(1f, 0.98f, 0.66f, 0.82f), 0.88f, true);
+        DrawLine(position - right * 4.9f, position + right * 4.9f, new Color(0.10f, 0.96f, 1f, 0.28f), 0.68f, true);
     }
 
     private void DrawAsteroidMinimapIcon(AsteroidState asteroid, Vector2 position, float radius, Color color, float heat)
@@ -500,27 +694,40 @@ public partial class HudOverlay : Control
         DrawLine(crackA, crackB, new Color(0.045f, 0.038f, 0.033f, 0.52f), 0.7f, true);
     }
 
-    private void DrawAsteroidTrajectory(Vector2 center, float scale, Rect2 mapRect, AsteroidState asteroid)
+    private void DrawAsteroidTrajectory(Vector2 center, float scale, Rect2 mapRect, AsteroidState asteroid, CoreVector2 activeOrigin, bool useSolarTrajectory)
     {
-        if (AsteroidPhysics.IsOutsideRemovalBounds(asteroid.Position, asteroid.Radius, _asteroidTrajectoryConfig)
-            || AsteroidPhysics.IsInsideSunBurnZone(asteroid.Position, asteroid.Radius, _asteroidTrajectoryConfig))
+        if (_snapshot is null)
         {
             return;
         }
 
-        var position = asteroid.Position;
+        var bounds = _snapshot.Bounds;
+        var localStart = asteroid.Position - activeOrigin;
+        if (useSolarTrajectory
+            && (AsteroidPhysics.IsOutsideRemovalBounds(localStart, asteroid.Radius, _asteroidTrajectoryConfig)
+                || AsteroidPhysics.IsInsideSunBurnZone(localStart, asteroid.Radius, _asteroidTrajectoryConfig)))
+        {
+            return;
+        }
+
+        var position = localStart;
         var velocity = asteroid.Velocity;
         var previousWorld = position;
         var previousMap = center + new Vector2(position.X * scale, position.Y * scale);
         var previousInside = mapRect.HasPoint(previousMap);
-        const int maxPredictionSteps = 760;
+        var maxPredictionSteps = useSolarTrajectory ? 760 : 240;
         const int drawEverySteps = 5;
 
         for (var step = 0; step < maxPredictionSteps; step++)
         {
-            var distanceToSun = MathF.Max(1f, position.Length());
-            var predictionDelta = Math.Clamp(distanceToSun / 7600f, 0.08f, 0.42f);
-            velocity += AsteroidPhysics.SolarGravity(position, _asteroidTrajectoryConfig) * predictionDelta;
+            var predictionDelta = useSolarTrajectory
+                ? Math.Clamp(MathF.Max(1f, position.Length()) / 7600f, 0.08f, 0.42f)
+                : 0.24f;
+            if (useSolarTrajectory)
+            {
+                velocity += AsteroidPhysics.SolarGravity(position, _asteroidTrajectoryConfig) * predictionDelta;
+            }
+
             position += velocity * predictionDelta;
 
             if (!IsFinite(position) || !IsFinite(velocity))
@@ -537,7 +744,7 @@ public partial class HudOverlay : Control
                 DrawLine(previousMap, currentMap, new Color(1f, 0.72f, 0.30f, alpha), 0.82f, false);
             }
 
-            if (TryBurnIntersection(previousWorld, position, asteroid.Radius, out var burnPoint))
+            if (useSolarTrajectory && TryBurnIntersection(previousWorld, position, asteroid.Radius, out var burnPoint))
             {
                 var burnMap = center + new Vector2(burnPoint.X * scale, burnPoint.Y * scale);
                 if (previousInside && mapRect.HasPoint(burnMap) && IsFinite(previousMap) && IsFinite(burnMap))
@@ -554,7 +761,9 @@ public partial class HudOverlay : Control
                 break;
             }
 
-            if (AsteroidPhysics.IsOutsideRemovalBounds(position, asteroid.Radius, _asteroidTrajectoryConfig)
+            if ((useSolarTrajectory && AsteroidPhysics.IsOutsideRemovalBounds(position, asteroid.Radius, _asteroidTrajectoryConfig))
+                || MathF.Abs(position.X) > bounds.HalfWidth + 2400f
+                || MathF.Abs(position.Y) > bounds.HalfHeight + 2400f
                 || position.LengthSquared() > 120000f * 120000f)
             {
                 break;
@@ -598,6 +807,15 @@ public partial class HudOverlay : Control
         _mapPlayerMarker[3] = position - forward * (3.2f * scale) - right * (5.6f * scale);
     }
 
+    private void DrawClosedPolyline(Vector2[] points, Color color, float width)
+    {
+        DrawPolyline(points, color, width, true);
+        if (points.Length > 1)
+        {
+            DrawLine(points[^1], points[0], color, width, true);
+        }
+    }
+
     private void SetAsteroidMarkerPoints(Vector2 position, float radius, float rotation, int seed)
     {
         for (var index = 0; index < _mapAsteroidShape.Length; index++)
@@ -606,14 +824,6 @@ public partial class HudOverlay : Control
             var jitter = 0.76f + Hash01(seed * 0.013f + index * 9.37f) * 0.34f;
             _mapAsteroidShape[index] = position + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * radius * jitter;
         }
-    }
-
-    private static Vector2 ClampToRect(Vector2 point, Rect2 rect)
-    {
-        var max = rect.Position + rect.Size;
-        return new Vector2(
-            Math.Clamp(point.X, rect.Position.X, max.X),
-            Math.Clamp(point.Y, rect.Position.Y, max.Y));
     }
 
     private bool TryBurnIntersection(CoreVector2 from, CoreVector2 to, float asteroidRadius, out CoreVector2 intersection)
@@ -669,6 +879,22 @@ public partial class HudOverlay : Control
         return new Color(color.R, color.G, color.B, Math.Clamp(alpha, 0f, 1f));
     }
 
+    private static Color MixColors(Color from, Color to, float amount)
+    {
+        var t = Math.Clamp(amount, 0f, 1f);
+        return new Color(
+            from.R + (to.R - from.R) * t,
+            from.G + (to.G - from.G) * t,
+            from.B + (to.B - from.B) * t,
+            from.A + (to.A - from.A) * t);
+    }
+
+    private static Vector2 ForwardFromRotation(float rotation)
+    {
+        var forward = new Vector2(MathF.Sin(rotation), -MathF.Cos(rotation));
+        return forward.LengthSquared() <= 0.001f ? Vector2.Up : forward.Normalized();
+    }
+
     private static float Hash01(float value)
     {
         var hashed = MathF.Sin(value) * 43758.5453f;
@@ -686,7 +912,7 @@ public partial class HudOverlay : Control
         label.AddThemeColorOverride("font_shadow_color", new Color(0f, 0f, 0f, 0.9f));
         label.AddThemeConstantOverride("shadow_offset_x", 1);
         label.AddThemeConstantOverride("shadow_offset_y", 1);
-        label.AddThemeFontSizeOverride("font_size", 10);
+        label.AddThemeFontSizeOverride("font_size", 12);
         return label;
     }
 
@@ -710,4 +936,5 @@ public partial class HudOverlay : Control
 
         return default;
     }
+
 }

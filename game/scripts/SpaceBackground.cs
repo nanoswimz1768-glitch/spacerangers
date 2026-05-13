@@ -1,5 +1,6 @@
 using Godot;
 using SpaceManagers.Core;
+using CoreVector2 = System.Numerics.Vector2;
 
 namespace SpaceManagersPrototype;
 
@@ -8,11 +9,15 @@ public partial class SpaceBackground : Node2D
     private const bool ShowPlanetScaleDebugLabels = false;
     private const int OrbitArcSegments = 192;
     private const int SunCoronaArcSegments = 72;
-    private const int MaxCachedSunFrameSets = 3;
+    private const int MaxCachedSunFrameSets = 1;
     private static readonly bool UseAnimatedNonEarthPlanets = true;
     private static readonly bool UseSolarRendererForAllStars = true;
     private static readonly Dictionary<string, Texture2D[]> SunFrameCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string[]> SunFramePathCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Queue<string> SunFrameCacheOrder = new();
+    private static readonly Dictionary<string, Texture2D> TextureCache = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> ThreadedTextureRequests = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> MissingTexturePaths = new(StringComparer.OrdinalIgnoreCase);
 
     private static readonly Vector2 StarPosition = Vector2.Zero;
     private static readonly IReadOnlyDictionary<string, PlanetRenderSettings> PlanetRenderSettingsById =
@@ -46,6 +51,7 @@ public partial class SpaceBackground : Node2D
         };
 
     private readonly List<Texture2D> _sunFrames = new();
+    private readonly HashSet<string> _activeSunFrameTexturePaths = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Texture2D> _planetTextures = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, AnimatedPlanetView> _animatedPlanets = new(StringComparer.OrdinalIgnoreCase);
 
@@ -58,10 +64,13 @@ public partial class SpaceBackground : Node2D
     private SpaceBackdropView? _backdropView;
     private string _loadedSunFrameDirectory = string.Empty;
     private string _loadedSunFramePrefix = string.Empty;
+    private string _loadedContentSystemId = string.Empty;
     private StarSystemDefinition _currentSystem = SolarSystem.Sol;
     private WorldBounds _bounds = new(24000f, 16000f);
     private float _time;
     private bool _usesExternalVisualTime;
+    private bool _currentSystemHasPendingResources;
+    private double _pendingResourcePollElapsed;
 
     public StarSystemDefinition CurrentSystem => _currentSystem;
     public WorldBounds Bounds
@@ -81,9 +90,18 @@ public partial class SpaceBackground : Node2D
     {
         _currentSystem = system;
         _time = 0f;
+        PreloadSystemResources(system);
         if (IsInsideTree())
         {
             ReloadSystemContent();
+        }
+    }
+
+    public void PreloadSystemResources(StarSystemDefinition system)
+    {
+        foreach (var path in EnumerateSystemTexturePaths(system))
+        {
+            RequestThreadedTexture(path);
         }
     }
 
@@ -92,7 +110,7 @@ public partial class SpaceBackground : Node2D
         _usesExternalVisualTime = true;
         _time = Math.Max(0f, timeSeconds);
         UpdateAnimatedSystemViews();
-        _backdropView?.QueueBackdropRedraw();
+        _backdropView?.QueueBackdropRedrawIfCameraChanged();
         QueueRedraw();
     }
 
@@ -105,9 +123,50 @@ public partial class SpaceBackground : Node2D
         ReloadSystemContent();
     }
 
+    public override void _ExitTree()
+    {
+        _sunView?.SetFrames(Array.Empty<Texture2D>());
+        _sunFrames.Clear();
+        _activeSunFrameTexturePaths.Clear();
+        _planetTextures.Clear();
+        _spaceTexture = null;
+        _starTexture = null;
+        _moonTexture = null;
+        if (_animatedEarth is not null)
+        {
+            _animatedEarth.SurfaceTexture = null;
+            _animatedEarth.CloudTexture = null;
+        }
+
+        foreach (var planet in _animatedPlanets.Values)
+        {
+            planet.SurfaceTexture = null;
+        }
+
+        SunFrameCache.Clear();
+        SunFramePathCache.Clear();
+        SunFrameCacheOrder.Clear();
+        DrainThreadedTextureRequests();
+        TextureCache.Clear();
+        ThreadedTextureRequests.Clear();
+        MissingTexturePaths.Clear();
+        _currentSystemHasPendingResources = false;
+    }
+
     private void ReloadSystemContent()
     {
-        ReleaseActiveSystemContent();
+        var sameSystemReload = string.Equals(_loadedContentSystemId, _currentSystem.Id, StringComparison.OrdinalIgnoreCase);
+        _currentSystemHasPendingResources = false;
+        _pendingResourcePollElapsed = 0.0;
+        if (sameSystemReload)
+        {
+            ReleaseTextureReferencesOnly();
+        }
+        else
+        {
+            ReleaseActiveSystemContent();
+        }
+
         _spaceTexture = ShouldLoadSpaceTexture(_currentSystem.Background.TexturePath)
             ? LoadTexture(_currentSystem.Background.TexturePath)
             : null;
@@ -120,7 +179,7 @@ public partial class SpaceBackground : Node2D
         SyncAnimatedEarthForSystem();
         if (UseAnimatedNonEarthPlanets)
         {
-            LoadAnimatedPlanets();
+            SyncAnimatedPlanets(sameSystemReload);
         }
 
         UpdateSpaceBackdropRenderer();
@@ -132,14 +191,20 @@ public partial class SpaceBackground : Node2D
         }
 
         QueueRedraw();
+        _loadedContentSystemId = _currentSystem.Id;
     }
 
     private void ReleaseActiveSystemContent()
     {
+        ReleaseTextureReferencesOnly();
+        ReleaseAnimatedPlanets();
+    }
+
+    private void ReleaseTextureReferencesOnly()
+    {
         _spaceTexture = null;
         _starTexture = null;
         _planetTextures.Clear();
-        ReleaseAnimatedPlanets();
     }
 
     private void LoadSpaceBackdropRenderer()
@@ -167,18 +232,48 @@ public partial class SpaceBackground : Node2D
     {
         if (_usesExternalVisualTime)
         {
-            _backdropView?.QueueBackdropRedraw();
+            TryRefreshPendingSystemResources(delta);
+            _backdropView?.QueueBackdropRedrawIfCameraChanged();
             return;
         }
 
         _time += (float)delta;
+        TryRefreshPendingSystemResources(delta);
         UpdateAnimatedSystemViews();
-        _backdropView?.QueueBackdropRedraw();
+        _backdropView?.QueueBackdropRedrawIfCameraChanged();
         QueueRedraw();
+    }
+
+    private void TryRefreshPendingSystemResources(double delta)
+    {
+        if (!_currentSystemHasPendingResources)
+        {
+            return;
+        }
+
+        _pendingResourcePollElapsed += delta;
+        if (_pendingResourcePollElapsed < 0.18)
+        {
+            return;
+        }
+
+        _pendingResourcePollElapsed = 0.0;
+        if (!SystemThreadedResourcesReady(_currentSystem))
+        {
+            return;
+        }
+
+        ReloadSystemContent();
     }
 
     private void UpdateAnimatedSystemViews()
     {
+        if (!CameraIsInPrimaryGrid())
+        {
+            SetAnimatedSystemViewsVisible(false);
+            return;
+        }
+
         UpdateStabilizedSun();
         UpdateAnimatedEarth();
         if (UseAnimatedNonEarthPlanets)
@@ -189,12 +284,39 @@ public partial class SpaceBackground : Node2D
 
     public override void _Draw()
     {
+        if (!CameraIsInPrimaryGrid())
+        {
+            return;
+        }
+
         DrawOrbits();
         DrawPlanets();
 
         DrawSun();
+    }
 
-        DrawRect(new Rect2(-Bounds.HalfWidth, -Bounds.HalfHeight, Bounds.HalfWidth * 2f, Bounds.HalfHeight * 2f), new Color(0.0f, 0.74f, 1f, 0.14f), false, 8f);
+    private bool CameraIsInPrimaryGrid()
+    {
+        var cameraPosition = GetViewport().GetCamera2D()?.GlobalPosition ?? Vector2.Zero;
+        return WorldGrid.IsPrimaryCell(new CoreVector2(cameraPosition.X, cameraPosition.Y), Bounds);
+    }
+
+    private void SetAnimatedSystemViewsVisible(bool visible)
+    {
+        if (_sunView is not null)
+        {
+            _sunView.Visible = visible;
+        }
+
+        if (_animatedEarth is not null)
+        {
+            _animatedEarth.Visible = visible;
+        }
+
+        foreach (var planet in _animatedPlanets.Values)
+        {
+            planet.Visible = visible;
+        }
     }
 
     private void LoadSunFramesForCurrentSystem()
@@ -207,14 +329,16 @@ public partial class SpaceBackground : Node2D
             GD.Print($"Using primary generated star frames: {directory}");
         }
 
-        LoadSunFrames(directory, prefix);
-        if (_sunFrames.Count == 0 && !IsDefaultSolarFrameDirectory(directory))
+        var loadResult = LoadSunFrames(directory, prefix);
+        if (loadResult == SunFrameLoadResult.Missing && !IsDefaultSolarFrameDirectory(directory))
         {
             LoadSunFrames(DefaultSolarFrameDirectory, "sun_");
         }
+
+        PruneCachedSunFrameTextures();
     }
 
-    private void LoadSunFrames(string frameDirectory, string framePrefix)
+    private SunFrameLoadResult LoadSunFrames(string frameDirectory, string framePrefix)
     {
         var normalizedDirectory = frameDirectory.TrimEnd('/');
         var normalizedPrefix = string.IsNullOrWhiteSpace(framePrefix) ? "sun_" : framePrefix;
@@ -222,21 +346,34 @@ public partial class SpaceBackground : Node2D
             && string.Equals(_loadedSunFrameDirectory, normalizedDirectory, StringComparison.OrdinalIgnoreCase)
             && string.Equals(_loadedSunFramePrefix, normalizedPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            return;
+            return SunFrameLoadResult.Loaded;
         }
 
         _sunFrames.Clear();
+        _activeSunFrameTexturePaths.Clear();
         _loadedSunFrameDirectory = normalizedDirectory;
         _loadedSunFramePrefix = normalizedPrefix;
 
         var cacheKey = SunFrameCacheKey(normalizedDirectory, normalizedPrefix);
+        EvictSunFrameCachesExcept(cacheKey);
         if (SunFrameCache.TryGetValue(cacheKey, out var cachedFrames))
         {
             _sunFrames.AddRange(cachedFrames);
+            if (SunFramePathCache.TryGetValue(cacheKey, out var cachedPaths))
+            {
+                foreach (var path in cachedPaths)
+                {
+                    _activeSunFrameTexturePaths.Add(path);
+                }
+            }
+
             _sunView?.SetFrames(_sunFrames);
-            return;
+            return SunFrameLoadResult.Loaded;
         }
 
+        var loadedFramePaths = new List<string>();
+        var foundFrameResources = false;
+        var frameLoadPending = false;
         for (var i = 0; i < 128; i++)
         {
             var path = $"{normalizedDirectory}/{normalizedPrefix}{i:00}.png";
@@ -245,15 +382,35 @@ public partial class SpaceBackground : Node2D
                 break;
             }
 
-            var texture = ResourceLoader.Load<Texture2D>(path);
+            foundFrameResources = true;
+            var pendingBeforeLoad = IsThreadedTextureRequestInProgress(path);
+            var texture = LoadTexture(path);
             if (texture is not null)
             {
                 _sunFrames.Add(texture);
+                loadedFramePaths.Add(path);
+                _activeSunFrameTexturePaths.Add(path);
+            }
+            else if (pendingBeforeLoad || IsThreadedTextureRequestInProgress(path))
+            {
+                frameLoadPending = true;
             }
         }
 
-        CacheSunFrames(cacheKey, _sunFrames);
+        if (!_currentSystemHasPendingResources)
+        {
+            CacheSunFrames(cacheKey, _sunFrames, loadedFramePaths);
+        }
+
         _sunView?.SetFrames(_sunFrames);
+        if (_sunFrames.Count > 0)
+        {
+            return SunFrameLoadResult.Loaded;
+        }
+
+        return foundFrameResources && frameLoadPending
+            ? SunFrameLoadResult.Loading
+            : SunFrameLoadResult.Missing;
     }
 
     private static string SunFrameCacheKey(string frameDirectory, string framePrefix)
@@ -261,7 +418,7 @@ public partial class SpaceBackground : Node2D
         return $"{frameDirectory.TrimEnd('/')}|{framePrefix}";
     }
 
-    private static void CacheSunFrames(string cacheKey, IReadOnlyList<Texture2D> frames)
+    private static void CacheSunFrames(string cacheKey, IReadOnlyList<Texture2D> frames, IReadOnlyList<string> framePaths)
     {
         if (frames.Count == 0 || SunFrameCache.ContainsKey(cacheKey))
         {
@@ -273,17 +430,81 @@ public partial class SpaceBackground : Node2D
             var evictedKey = SunFrameCacheOrder.Dequeue();
             if (!string.Equals(evictedKey, cacheKey, StringComparison.OrdinalIgnoreCase))
             {
-                SunFrameCache.Remove(evictedKey);
+                RemoveSunFrameCacheEntry(evictedKey);
             }
         }
 
         SunFrameCache[cacheKey] = frames.ToArray();
+        SunFramePathCache[cacheKey] = framePaths.ToArray();
         SunFrameCacheOrder.Enqueue(cacheKey);
+    }
+
+    private static void EvictSunFrameCachesExcept(string cacheKeyToKeep)
+    {
+        foreach (var key in SunFrameCache.Keys.ToArray())
+        {
+            if (!string.Equals(key, cacheKeyToKeep, StringComparison.OrdinalIgnoreCase))
+            {
+                RemoveSunFrameCacheEntry(key);
+            }
+        }
+
+        RebuildSunFrameCacheOrder();
+    }
+
+    private static void RemoveSunFrameCacheEntry(string cacheKey)
+    {
+        SunFrameCache.Remove(cacheKey);
+        if (SunFramePathCache.Remove(cacheKey, out var framePaths))
+        {
+            foreach (var path in framePaths)
+            {
+                TextureCache.Remove(path);
+            }
+        }
+    }
+
+    private static void RebuildSunFrameCacheOrder()
+    {
+        if (SunFrameCacheOrder.Count == 0)
+        {
+            return;
+        }
+
+        var retainedKeys = SunFrameCacheOrder
+            .Where(SunFrameCache.ContainsKey)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        SunFrameCacheOrder.Clear();
+        foreach (var key in retainedKeys)
+        {
+            SunFrameCacheOrder.Enqueue(key);
+        }
+    }
+
+    private void PruneCachedSunFrameTextures()
+    {
+        var keepPaths = new HashSet<string>(_activeSunFrameTexturePaths, StringComparer.OrdinalIgnoreCase);
+        foreach (var framePaths in SunFramePathCache.Values)
+        {
+            foreach (var path in framePaths)
+            {
+                keepPaths.Add(path);
+            }
+        }
+
+        foreach (var path in TextureCache.Keys.Where(IsSunFrameTexturePath).ToArray())
+        {
+            if (!keepPaths.Contains(path))
+            {
+                TextureCache.Remove(path);
+            }
+        }
     }
 
     private void EnsureStabilizedSun()
     {
-        if (_sunFrames.Count == 0)
+        if (_sunFrames.Count < 4 || _currentSystemHasPendingResources)
         {
             return;
         }
@@ -313,22 +534,17 @@ public partial class SpaceBackground : Node2D
         _planetTextures.Clear();
         foreach (var planet in _currentSystem.Planets)
         {
+            if (UsesAnimatedPlanetRenderer(planet))
+            {
+                continue;
+            }
+
             var texture = LoadTexture(planet.TexturePath);
             if (texture is not null)
             {
                 _planetTextures[planet.Id] = texture;
             }
         }
-    }
-
-    private void LoadAnimatedEarth()
-    {
-        _animatedEarth = new AnimatedEarthView
-        {
-            SurfaceTexture = LoadTexture("res://assets/planets/earth_surface_map.png"),
-            CloudTexture = LoadTexture("res://assets/planets/earth_clouds.png")
-        };
-        AddChild(_animatedEarth);
     }
 
     private void SyncAnimatedEarthForSystem()
@@ -340,11 +556,28 @@ public partial class SpaceBackground : Node2D
             return;
         }
 
-        if (_animatedEarth is null)
+        var surface = LoadTexture("res://assets/planets/earth_surface_map.png");
+        var clouds = LoadTexture("res://assets/planets/earth_clouds.png");
+        if (surface is null || clouds is null)
         {
-            LoadAnimatedEarth();
+            if (_animatedEarth is not null)
+            {
+                _animatedEarth.SurfaceTexture = surface ?? _animatedEarth.SurfaceTexture;
+                _animatedEarth.CloudTexture = clouds ?? _animatedEarth.CloudTexture;
+            }
+
+            _moonTexture ??= LoadTexture("res://assets/planets/moon.png");
+            return;
         }
 
+        if (_animatedEarth is null)
+        {
+            _animatedEarth = new AnimatedEarthView();
+            AddChild(_animatedEarth);
+        }
+
+        _animatedEarth.SurfaceTexture = surface;
+        _animatedEarth.CloudTexture = clouds;
         _moonTexture ??= LoadTexture("res://assets/planets/moon.png");
     }
 
@@ -360,9 +593,14 @@ public partial class SpaceBackground : Node2D
         _moonTexture = null;
     }
 
-    private void LoadAnimatedPlanets()
+    private void SyncAnimatedPlanets(bool reuseExisting)
     {
-        ReleaseAnimatedPlanets();
+        if (!reuseExisting)
+        {
+            ReleaseAnimatedPlanets();
+        }
+
+        var desiredPlanetIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var planet in _currentSystem.Planets)
         {
             if (planet.Id == "earth" || RenderSettingsFor(planet) is not { } settings)
@@ -370,33 +608,69 @@ public partial class SpaceBackground : Node2D
                 continue;
             }
 
-            var view = new AnimatedPlanetView
+            desiredPlanetIds.Add(planet.Id);
+            var surface = LoadTexture(settings.SurfacePath);
+            if (!_animatedPlanets.TryGetValue(planet.Id, out var view))
             {
-                SurfaceTexture = LoadTexture(settings.SurfacePath),
-                AtmosphereColor = settings.AtmosphereColor,
-                AtmosphereStrength = settings.AtmosphereStrength,
-                RotationSpeed = settings.RotationSpeed,
-                FlowStrength = settings.FlowStrength,
-                Contrast = settings.Contrast,
-                Saturation = settings.Saturation,
-                GlowStrength = settings.GlowStrength
-            };
+                if (surface is null)
+                {
+                    continue;
+                }
 
-            if (settings.Rings is { } rings)
-            {
-                view.HasRings = true;
-                view.RingInnerRadiusFactor = rings.InnerRadiusFactor;
-                view.RingOuterRadiusFactor = rings.OuterRadiusFactor;
-                view.RingFlattening = rings.Flattening;
-                view.RingRotation = rings.Rotation;
-                view.RingAlpha = rings.Alpha;
-                view.RingColor = rings.Color;
-                view.RingAccentColor = rings.AccentColor;
+                view = new AnimatedPlanetView();
+                _animatedPlanets[planet.Id] = view;
+                AddChild(view);
             }
 
-            _animatedPlanets[planet.Id] = view;
-            AddChild(view);
+            ApplyAnimatedPlanetSettings(view, settings, surface);
         }
+
+        if (!reuseExisting)
+        {
+            return;
+        }
+
+        foreach (var id in _animatedPlanets.Keys.ToArray())
+        {
+            if (desiredPlanetIds.Contains(id))
+            {
+                continue;
+            }
+
+            var view = _animatedPlanets[id];
+            RemoveChild(view);
+            view.QueueFree();
+            _animatedPlanets.Remove(id);
+        }
+    }
+
+    private static void ApplyAnimatedPlanetSettings(AnimatedPlanetView view, PlanetRenderSettings settings, Texture2D? surface)
+    {
+        if (surface is not null)
+        {
+            view.SurfaceTexture = surface;
+        }
+
+        view.AtmosphereColor = settings.AtmosphereColor;
+        view.AtmosphereStrength = settings.AtmosphereStrength;
+        view.RotationSpeed = settings.RotationSpeed;
+        view.FlowStrength = settings.FlowStrength;
+        view.Contrast = settings.Contrast;
+        view.Saturation = settings.Saturation;
+        view.GlowStrength = settings.GlowStrength;
+        view.HasRings = settings.Rings is not null;
+        if (settings.Rings is { } rings)
+        {
+            view.RingInnerRadiusFactor = rings.InnerRadiusFactor;
+            view.RingOuterRadiusFactor = rings.OuterRadiusFactor;
+            view.RingFlattening = rings.Flattening;
+            view.RingRotation = rings.Rotation;
+            view.RingAlpha = rings.Alpha;
+            view.RingColor = rings.Color;
+            view.RingAccentColor = rings.AccentColor;
+        }
+
+        view.ApplyVisualState();
     }
 
     private void ReleaseAnimatedPlanets()
@@ -410,7 +684,7 @@ public partial class SpaceBackground : Node2D
         _animatedPlanets.Clear();
     }
 
-    private static Texture2D? LoadTexture(string resourcePath)
+    private Texture2D? LoadTexture(string resourcePath)
     {
         if (string.IsNullOrWhiteSpace(resourcePath))
         {
@@ -419,7 +693,42 @@ public partial class SpaceBackground : Node2D
 
         if (ResourceLoader.Exists(resourcePath))
         {
-            return ResourceLoader.Load<Texture2D>(resourcePath);
+            if (TextureCache.TryGetValue(resourcePath, out var cachedTexture))
+            {
+                return cachedTexture;
+            }
+
+            if (ThreadedTextureRequests.Contains(resourcePath))
+            {
+                var status = ResourceLoader.LoadThreadedGetStatus(resourcePath);
+                if (status == ResourceLoader.ThreadLoadStatus.Loaded)
+                {
+                    var threadedTexture = ResourceLoader.LoadThreadedGet(resourcePath) as Texture2D;
+                    ThreadedTextureRequests.Remove(resourcePath);
+                    if (threadedTexture is not null)
+                    {
+                        TextureCache[resourcePath] = threadedTexture;
+                    }
+
+                    return threadedTexture;
+                }
+
+                if (status == ResourceLoader.ThreadLoadStatus.InProgress)
+                {
+                    _currentSystemHasPendingResources = true;
+                    return null;
+                }
+
+                ThreadedTextureRequests.Remove(resourcePath);
+            }
+
+            var texture = LoadTextureSync(resourcePath);
+            if (texture is not null)
+            {
+                TextureCache[resourcePath] = texture;
+            }
+
+            return texture;
         }
 
         var globalPath = ProjectSettings.GlobalizePath(resourcePath);
@@ -435,6 +744,188 @@ public partial class SpaceBackground : Node2D
         }
 
         return ImageTexture.CreateFromImage(image);
+    }
+
+    private static Texture2D? LoadTextureSync(string resourcePath)
+    {
+        try
+        {
+            return ResourceLoader.Load<Texture2D>(resourcePath);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static IEnumerable<string> EnumerateSystemTexturePaths(StarSystemDefinition system)
+    {
+        if (ShouldLoadSpaceTexture(system.Background.TexturePath))
+        {
+            yield return system.Background.TexturePath;
+        }
+
+        if (!UseSolarRendererForAllStars && !string.IsNullOrWhiteSpace(system.Star.TexturePath))
+        {
+            yield return system.Star.TexturePath;
+        }
+
+        foreach (var path in EnumerateStarFramePaths(system.Star))
+        {
+            yield return path;
+        }
+
+        foreach (var planet in system.Planets)
+        {
+            var settings = RenderSettingsFor(planet);
+            if (UseAnimatedNonEarthPlanets && planet.Id != "earth" && settings is not null)
+            {
+                yield return settings.SurfacePath;
+            }
+            else
+            {
+                yield return planet.TexturePath;
+                if (settings is not null)
+                {
+                    yield return settings.SurfacePath;
+                }
+            }
+
+            if (planet.Id == "earth")
+            {
+                yield return "res://assets/planets/earth_surface_map.png";
+                yield return "res://assets/planets/earth_clouds.png";
+                yield return "res://assets/planets/moon.png";
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateStarFramePaths(StarDefinition star)
+    {
+        var requestedDirectory = StarFrameDirectory(star);
+        var directory = PreferredGeneratedStarFrameDirectoryOrDefault(requestedDirectory, star);
+        var foundPreferredFrames = false;
+        foreach (var path in EnumerateFramePaths(directory, StarFramePrefix(star)))
+        {
+            foundPreferredFrames = true;
+            yield return path;
+        }
+
+        if (!foundPreferredFrames && !IsDefaultSolarFrameDirectory(directory))
+        {
+            foreach (var path in EnumerateFramePaths(DefaultSolarFrameDirectory, "sun_"))
+            {
+                yield return path;
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateFramePaths(string frameDirectory, string framePrefix)
+    {
+        var normalizedDirectory = frameDirectory.TrimEnd('/');
+        var normalizedPrefix = string.IsNullOrWhiteSpace(framePrefix) ? "sun_" : framePrefix;
+        for (var i = 0; i < 128; i++)
+        {
+            var path = $"{normalizedDirectory}/{normalizedPrefix}{i:00}.png";
+            if (!ResourceLoader.Exists(path))
+            {
+                break;
+            }
+
+            yield return path;
+        }
+    }
+
+    private static void RequestThreadedTexture(string resourcePath)
+    {
+        if (string.IsNullOrWhiteSpace(resourcePath) || MissingTexturePaths.Contains(resourcePath) || ThreadedTextureRequests.Contains(resourcePath))
+        {
+            return;
+        }
+
+        if (TextureCache.ContainsKey(resourcePath))
+        {
+            return;
+        }
+
+        if (!ResourceLoader.Exists(resourcePath))
+        {
+            MissingTexturePaths.Add(resourcePath);
+            return;
+        }
+
+        var error = ResourceLoader.LoadThreadedRequest(resourcePath, "Texture2D", useSubThreads: true, cacheMode: ResourceLoader.CacheMode.Reuse);
+        if (error == Error.Ok)
+        {
+            ThreadedTextureRequests.Add(resourcePath);
+        }
+    }
+
+    private static bool IsThreadedTextureRequestInProgress(string resourcePath)
+    {
+        if (!ThreadedTextureRequests.Contains(resourcePath))
+        {
+            return false;
+        }
+
+        try
+        {
+            return ResourceLoader.LoadThreadedGetStatus(resourcePath) == ResourceLoader.ThreadLoadStatus.InProgress;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool IsSunFrameTexturePath(string resourcePath)
+    {
+        var normalizedPath = resourcePath.Replace('\\', '/');
+        return normalizedPath.Contains("/assets/backgrounds/sun/", StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.Contains("/assets/generated/star_frames/", StringComparison.OrdinalIgnoreCase)
+            || normalizedPath.Contains("/assets/generated/star_frames_experimental/", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void DrainThreadedTextureRequests()
+    {
+        foreach (var path in ThreadedTextureRequests.ToArray())
+        {
+            try
+            {
+                if (!ResourceLoader.Exists(path))
+                {
+                    continue;
+                }
+
+                var status = ResourceLoader.LoadThreadedGetStatus(path);
+                if (status is ResourceLoader.ThreadLoadStatus.Loaded or ResourceLoader.ThreadLoadStatus.InProgress)
+                {
+                    _ = ResourceLoader.LoadThreadedGet(path);
+                }
+            }
+            catch
+            {
+                // Shutdown cleanup only: avoid turning diagnostic resource drain into a crash path.
+            }
+        }
+    }
+
+    private static bool SystemThreadedResourcesReady(StarSystemDefinition system)
+    {
+        foreach (var path in EnumerateSystemTexturePaths(system))
+        {
+            if (!ThreadedTextureRequests.Contains(path))
+            {
+                continue;
+            }
+
+            if (ResourceLoader.LoadThreadedGetStatus(path) == ResourceLoader.ThreadLoadStatus.InProgress)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void DrawSun()
@@ -731,6 +1222,7 @@ public partial class SpaceBackground : Node2D
         {
             var position = SolarSystem.PositionAt(planet, _time);
             var settings = RenderSettingsFor(planet);
+            var usesAnimatedPlanetRenderer = UsesAnimatedPlanetRenderer(planet);
             if (!IsCircleVisible(visibleWorld, position, PlanetCullRadius(planet, settings)))
             {
                 continue;
@@ -739,7 +1231,7 @@ public partial class SpaceBackground : Node2D
             var eclipse = Math.Clamp(position.X / Math.Max(1f, planet.OrbitRadius) * 0.24f + 0.76f, 0.56f, 1f);
             var glow = planet.MapColor;
             var useAnimatedEarth = planet.Id == "earth" && _animatedEarth?.IsAvailable == true;
-            var useAnimatedPlanet = planet.Id != "earth"
+            var useAnimatedPlanet = usesAnimatedPlanetRenderer
                 && _animatedPlanets.TryGetValue(planet.Id, out var animatedPlanet)
                 && animatedPlanet.IsAvailable;
 
@@ -752,7 +1244,7 @@ public partial class SpaceBackground : Node2D
             {
                 // Animated planet views draw as child canvas items; avoid the old solid fallback disk behind them.
             }
-            else if (_planetTextures.TryGetValue(planet.Id, out var texture))
+            else if (!usesAnimatedPlanetRenderer && _planetTextures.TryGetValue(planet.Id, out var texture))
             {
                 var textureSize = new Vector2(planet.TextureWorldSize, planet.TextureWorldSize);
                 var rect = new Rect2(position - textureSize * 0.5f, textureSize);
@@ -835,7 +1327,7 @@ public partial class SpaceBackground : Node2D
                 continue;
             }
 
-            if (!view.IsAvailable || RenderSettingsFor(planet) is not { } settings)
+            if (RenderSettingsFor(planet) is not { } settings)
             {
                 view.Visible = false;
                 continue;
@@ -856,6 +1348,11 @@ public partial class SpaceBackground : Node2D
             view.TimeSeconds = _time;
             view.Daylight = daylight;
             view.ApplyVisualState();
+            if (!view.IsAvailable)
+            {
+                view.Visible = false;
+                continue;
+            }
         }
     }
 
@@ -927,6 +1424,13 @@ public partial class SpaceBackground : Node2D
             : null;
     }
 
+    private static bool UsesAnimatedPlanetRenderer(PlanetDefinition planet)
+    {
+        return UseAnimatedNonEarthPlanets
+            && planet.Id != "earth"
+            && RenderSettingsFor(planet) is not null;
+    }
+
     private static float PlanetCullRadius(PlanetDefinition planet, PlanetRenderSettings? settings)
     {
         var radius = Math.Max(planet.BodyRadius, planet.TextureWorldSize * 0.5f) + 80f;
@@ -973,4 +1477,11 @@ public partial class SpaceBackground : Node2D
         float Alpha,
         Color Color,
         Color AccentColor);
+
+    private enum SunFrameLoadResult
+    {
+        Missing,
+        Loading,
+        Loaded
+    }
 }

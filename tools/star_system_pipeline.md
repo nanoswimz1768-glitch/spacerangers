@@ -22,8 +22,9 @@ Useful commands from the repository root:
 ```powershell
 python tools/prepare_highres_generation_batch.py
 python tools/process_highres_imagegen_assets.py --update-catalog --replace-lowres --replace-backgrounds
+python tools/process_highres_imagegen_assets.py --only-backgrounds --background-mode direct-source --update-catalog --replace-backgrounds
 python tools/generate_star_systems.py --seed 3311337 --clean --write-image-prompts
-python tools/generate_star_systems.py --seed 3311337 --sectors 6 --clean
+python tools/generate_star_systems.py --seed 3311340 --sectors 6 --clean
 ```
 
 Outputs:
@@ -37,7 +38,7 @@ Outputs:
 - `game/assets/generated/star_frames/<variant>/sun_00.png..sun_95.png`: runtime animated star frame sequences generated from direct high-res star sources. Generated systems can point `star.frameDirectory` here and still use `StabilizedSunView` plus `sun_stabilized.gdshader`.
 - `game/assets/generated/star_frames_experimental/<variant>/sun_00.png..sun_95.png`: primary generated-star frame sequences that preserve more direct PNG character while keeping the same `StabilizedSunView`/shader path. Runtime prefers these automatically for generated stars when matching frames exist; use `--star-frames=stable` for fallback review.
 - `game/assets/generated/planet_surfaces/*.png`: validated runtime planet surface maps, currently targeting 4096x2048 for direct high-res sources.
-- `game/assets/generated/background_tiles/*.png`: validated 4096x4096 tileable space backdrops; direct imagegen backgrounds must be converted into Sol-style nebula texture tiles, not used as fullscreen wallpaper.
+- `game/assets/generated/background_tiles/*.png`: validated 4096x4096 tileable space backdrops; current baseline preserves the accepted source art through the direct-source rectangular mosaic path, not Sol-style recoloring, square crop quilting, or fullscreen wallpaper stretching.
 - `game/assets/generated/planets/*.png`: legacy 1024x512 sheet-sliced planet sources; do not use for new approved generated systems.
 - `game/assets/generated/backgrounds/*.png`: legacy sliced imagegen backdrops; do not use directly as runtime space textures.
 - `tools/generated/highres_generation_batch.jsonl`: exact-count high-res generation queue; current target is 14 star sources, 14 background sources, and 32 planet sources.
@@ -77,13 +78,20 @@ Generated JSON pins the Sol baseline values (`TextureAlpha=1.0`,
 `TextureParallax=0.08`, `StarParallax=0.32`) instead of rolling per-archetype
 runtime parallax. The experimental generated nebula overlay is a separate layer
 and is disabled in the baseline path. For new direct high-res imagegen
-backgrounds, `tools/process_highres_imagegen_assets.py` transfers the source
-nebula color and broad dust shapes into the Sol-style tile language and
-keeps a restrained baked star/glint contribution. `SpaceBackdropView` breaks
-the visible mirror artifact at runtime with multiple faint, phase-offset tile
-passes, while the main texture pass uses the source asset color directly
-(`Colors.White` modulate, no runtime color grade or alpha dimming). Accepted
-PNGs keep their original color/composition instead of being re-synthesized.
+backgrounds, `tools/process_highres_imagegen_assets.py --background-mode direct-source`
+preserves the source nebula/star art by quilting full rectangular source passes
+at native pixel scale, not by stretching one image over the whole world and not
+by cutting square fragments out of it. Only the final 4096px tile edges are
+blended for repeat safety, and Sol is not used as a recolor/base texture.
+`SpaceBackdropView` draws the primary high-res pass at exact tile size and uses
+only very faint phase-offset secondary passes to soften visible repetition. The
+direct-source processor keeps the unblurred rectangular source pass as the
+dominant layer; any blurred broad pass is only a weak underlay. The backdrop
+runtime layer uses linear filtering without mipmaps so high-res star dust and
+nebula ridges do not smear during gameplay. The main texture pass uses the
+source asset color directly (`Colors.White`
+modulate, no runtime color grade or alpha dimming). Accepted PNGs keep their
+original color/composition instead of being re-synthesized.
 `ProceduralStarfieldLayer` still owns the runtime parallax
 starfield, so the texture tile should add art direction and depth, not become a
 fullscreen stretched wallpaper. `tools/create_background_tiles.py` remains the

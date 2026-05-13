@@ -28,7 +28,7 @@
 - сектор `Orion` сейчас стартовый; текущий generated-набор временно переведен в visual-test режим: ручной `Sol` плюс одна generated system `Planet Showcase` (`orion_0001`) со всеми 12 high-res типами планет;
 - `Sol` и его дефолтное солнце не трогать без явного запроса;
 - новые звезды используют `StabilizedSunView`/`sun_stabilized.gdshader` как эталонный renderer, с параметрами цвета, масштаба, corona intensity и animation speed;
-- generated backgrounds больше не должны использовать растянутые fullscreen imagegen sheets; все runtime backgrounds идут через `SpaceBackdropView` и Sol-style tiled world-space texture; для high-res background tiles renderer добавляет seed-based variation масштаба/фазы/слабых слоев, чтобы геометрия тайла меньше повторялась между системами;
+- generated backgrounds больше не должны использовать растянутые fullscreen imagegen sheets; все runtime backgrounds идут через `SpaceBackdropView` и direct-source tiled world-space texture; primary high-res pass рисуется 1:1 по размеру tile, а слабые seed-based phase/layer offsets используются только как тонкая маскировка повтора;
 - generated planet maps не должны использовать raw imagegen cuts напрямую; runtime JSON должен ссылаться на обработанные `game/assets/generated/planet_surfaces/*.png`;
 - миникарта и видимый космос должны получать один общий `systemTimeSeconds` из `GameRoot`, иначе орбитальные позиции расходятся после переключения системы;
 - burn damage/hitbox солнца масштабируется от размера текущей звезды; это покрыто core tests;
@@ -160,7 +160,7 @@ game/assets/generated/background_sources_4k/ Direct high-res generated backgroun
 game/assets/generated/stars/    Runtime generated star disk assets from direct high-res sources or legacy fallback sheets
 game/assets/generated/planets/  Raw generated planet image cuts; not preferred for runtime JSON
 game/assets/generated/planet_surfaces/ Processed seamless runtime planet surface maps; direct high-res targets 4096x2048
-game/assets/generated/background_tiles/ Sol-style 4096px tileable generated space backgrounds
+game/assets/generated/background_tiles/ Direct-source 4096px tileable generated space backgrounds plus legacy Sol-style fallbacks
 game/assets/generated/backgrounds/ Legacy imagegen background cuts; do not use as fullscreen runtime backgrounds
 game/assets/landing/            AOP-derived station tiles/props for Landing mode
 game/assets/backgrounds/        Space background textures
@@ -189,7 +189,7 @@ tmp/                            Temporary previews/generated scratch output
 - регистрирует input actions, включая `ship_afterburner` на Left Shift;
 - переключает обычный/Klissan каталог кораблей по тильде и корабли внутри активного каталога по `Tab`;
 - переключает generated star systems внутри активной игры (`F11` возвращает `Sol`, `F12` циклит generated systems);
-- открывает звездную карту через `M` или HUD-иконку; карта временно ставит симуляцию на паузу, показывает текущие runtime systems по секторам и по `OK` только настраивает варп-двигатель на выбранную систему без фактического прыжка;
+- открывает звездную карту через `M`; карта временно ставит симуляцию на паузу, показывает текущие runtime systems по секторам и по `OK` только настраивает варп-двигатель на выбранную систему без фактического прыжка;
 - загружает JSON generated-системы только при выборе/старте этой системы, а не весь сектор сразу;
 - передает один общий `systemTimeSeconds` в `SpaceBackground` и `HudOverlay`, чтобы видимые планеты и миникарта не расходились после system switch;
 - обрабатывает debug-spawn врагов, godmode, stress CLI, `--system=...`, `--stress-system-switches`, frame capture и LOD видимости врагов.
@@ -217,7 +217,7 @@ tmp/                            Temporary previews/generated scratch output
 
 - tiled space background;
 - parallax stars;
-- Sol-style generated background tiles из `game/assets/generated/background_tiles`;
+- direct-source generated background tiles из `game/assets/generated/background_tiles`;
 - орбиты планет;
 - солнце и generated stars через стабилизированный star-layer (`StabilizedSunView`) и fallback на старую отрисовку;
 - позиции планет;
@@ -246,14 +246,17 @@ tmp/                            Temporary previews/generated scratch output
 - `src/SpaceManagers.Core/LocalSimulation.cs`
 - `src/SpaceManagers.Core/SimulationConfig.cs`
 - `src/SpaceManagers.Core/ShipState.cs`
+- `src/SpaceManagers.Core/ShipRole.cs`
 - `src/SpaceManagers.Core/ShipHitbox.cs`
 - `src/SpaceManagers.Core/CombatStats.cs`
+- `src/SpaceManagers.Core/GalaxyLifeSimulation.cs`
 - `src/SpaceManagers.Core/ProjectileState.cs`
 - `src/SpaceManagers.Core/AsteroidState.cs`
 - `src/SpaceManagers.Core/AsteroidEventState.cs`
 - `src/SpaceManagers.Core/AsteroidPhysics.cs`
 - `src/SpaceManagers.Core/WorldSnapshot.cs`
 - `src/SpaceManagers.Core/WorldBounds.cs`
+- `src/SpaceManagers.Core/WorldGrid.cs`
 
 Текущие важные параметры в `SimulationConfig.cs`:
 
@@ -367,6 +370,20 @@ Enemy/NPC combat:
 - `F3` показывает hitbox у всех кораблей, астероидов и опасный радиус солнца;
 - у видимых ближайших врагов рисуются HP-полоски shield/armor/structure через `EnemyStatusLayer`.
 
+Galaxy life V1:
+
+- `ShipRole` food chain: `Trader`, `Diplomat`, `Ranger`, `Military`, `Pirate`, `Player`.
+- Pirates attack traders/diplomats, rangers, military, and the player. Military and rangers attack pirates. Traders and diplomats flee threats and keep cruising instead of firing.
+- NPC projectiles can now hit other NPC ships when roles are hostile. Player projectiles still hit any non-player ship.
+- `GalaxyLifeSimulation` keeps a persistent cheap roster outside Godot physics: pilot name, role, ship asset id, current system, destination/transit state, and seed.
+- Initial population is 32 total NPC ships per system: 26 federation roles plus 6 pirates inside the same pool; the current generated index creates 736 persistent pilots across 23 systems.
+- Background life steps once per second and only updates route/dwell/transit state. Full physics, projectiles, VFX, and `ShipView` nodes exist only for pilots materialized in the active system.
+- Active-system pilots are not moved into background transit while the player is there, so visible ships do not vanish as a cheap simulation shortcut.
+- Destroyed persistent pilots are removed from the roster and immediately replaced in a random system.
+- Role-to-asset convention: Trader -> `*T`, Diplomat -> `*D`, Ranger -> `*R`, Military -> `*W`, Pirate -> `*P`; race is chosen from People/Fei/Gaal/Maloc/Peleng. Klissans are intentionally excluded from galaxy life generation for now.
+- `EnemyStatusLayer` draws only compact shield/armor/structure bars for nearby visible NPCs; pilot names are kept in simulation but not drawn above ships.
+- Minimap ship markers are small oriented icons instead of plain dots: NPC color comes from the ship visual palette via `ShipState.VisualId`/`ShipCatalog`, while the player has a separate gold/cyan navigation marker and no velocity/thrust vector.
+
 Asteroids:
 
 - астероиды живут в `SpaceManagers.Core`, не в Godot-only визуале;
@@ -393,8 +410,10 @@ Asteroids:
 - `A/D` - turn
 - `Q/E` - strafe
 - mouse - aim
+- right mouse button - target-lock visible non-player ship; right click empty space clears lock when not near a ship
 - `R` - toggle Navigation/Combat mode
 - `M` - open/close star map
+- `N` - mute/unmute music; preference is persisted in `user://audio_settings.cfg`
 - left mouse button - fire in Combat mode
 - Left Shift - afterburner in Navigation mode
 - `~`/backtick - toggle ordinary ship catalog / Klissan ship catalog
@@ -416,9 +435,20 @@ Input actions создаются в `GameRoot.ConfigureInputMap()`.
 - `game/scripts/StarMapOverlay.cs`
 - `game/scripts/StarMapToggleButton.cs`
 - `game/scripts/EnemyStatusLayer.cs`
+- `game/scripts/TargetLockLayer.cs`
 - `game/scripts/AsteroidLayer.cs`
 - `game/scripts/AsteroidFireLayer.cs`
 - `game/scripts/AsteroidDebrisLayer.cs`
+
+Target lock V1:
+
+- right-click selects exactly one visible non-player ship; the player ship cannot be locked;
+- right-clicking another ship changes lock, while a clean empty-space right-click clears it; near misses close to a ship do not clear the current lock;
+- lock clears on target death, system switch, or excessive distance;
+- `TargetLockLayer` draws the world-space reticle around the target hitbox center: hostile pirates use red, neutral/friendly ships use restrained cyan/steel;
+- `HudOverlay` draws the target info panel to the left of the minimap with callsign, role, relation/mode, distance, speed, and shield/armor/structure bars;
+- `--debug-target-lock-first` is a capture-only helper that locks the nearest visible NPC on startup for visual review.
+- HUD tuning on 2026-05-13: minimap is 360x270, base HUD label font is 12px, and `ReticleView` world cursor scale is 0.55 so NAV/COMBAT reticles read slightly larger.
 
 Текущее состояние:
 
@@ -432,10 +462,10 @@ Input actions создаются в `GameRoot.ConfigureInputMap()`.
 - `F6` godmode отображается отдельным `GODMODE` label.
 - миникарта в правом верхнем углу рисует астероиды и их предсказанные дуги полета;
 - астероиды на миникарте отображаются не планетными шариками, а угловатыми каменными полигонами с фасетками/трещинами;
-- маркер игрока на миникарте отдельный: компактный янтарно-золотой корабельный chevron, плюс короткий velocity vector по текущей скорости в той же теплой палитре.
+- маркер игрока на миникарте отдельный: компактный янтарно-золотой/cyan reticle без velocity/thrust vector; NPC-иконки V2 являются radar glyphs: маленькое ядро + тонкий указатель носа в палитре `VisualId`, пираты имеют угловой broken-bracket. Cluster-ring markers были убраны после visual review.
 - под миникартой показывается имя текущей системы в формате `SYSTEM Sector / System`;
 - под именем системы показывается текущая настройка варп-двигателя: `WARP --` или `WARP -> Target`;
-- рядом с миникартой находится кликабельная HUD-иконка звездной карты; она дублирует `M`, открывает `StarMapOverlay` и при открытой карте показывает обычный Windows cursor;
+- HUD-иконка звездной карты отключена после UI review, чтобы не забивать пространство рядом с увеличенной миникартой; `M` остается основным входом в `StarMapOverlay`.
 - иконки звезды/планет на миникарте имеют отдельный screen-space scale, чтобы огромная звезда не забивала карту;
 - планеты на миникарте должны использовать тот же `systemTimeSeconds`, что и `SpaceBackground`, а не независимый `snapshot.Tick`; иначе после переключения систем orbital position может визуально разъехаться с реальным положением планеты.
 
@@ -452,7 +482,7 @@ Input actions создаются в `GameRoot.ConfigureInputMap()`.
 
 Текущее поведение:
 
-- `M` и HUD-иконка открывают/закрывают карту;
+- `M` открывает/закрывает карту; HUD-кнопка карты сейчас не добавляется в CanvasLayer;
 - открытая карта ставит gameplay input/симуляцию на паузу, показывает обычный cursor и оставляет фон игры под затемнением;
 - список систем строится из текущего `Sol` и `game/assets/generated/galaxy.json`; полноценный system JSON подгружается только для деталей конкретной generated-системы, без создания runtime nodes/textures для всех систем;
 - системы группируются по сектору, каждая система получает кружок цвета своей звезды, имя, current marker и tuned target marker;
@@ -583,18 +613,18 @@ Runtime loading:
 Backgrounds:
 
 - `Sol` использует `game/assets/backgrounds/space_nebula_tile.png`;
-- generated backgrounds используют отдельный renderer-layer `SpaceBackdropView`, устроенный как Sol-style фон: texture tile layer + procedural starfield layer;
+- generated backgrounds используют отдельный renderer-layer `SpaceBackdropView`, устроенный как tiled space layer + procedural starfield layer;
 - `SpaceBackdropView` применяет тот же runtime-контракт, что Sol background: `TextureAlpha=1.0`, `TextureParallax=0.08`, `StarParallax=0.32`; `tools/generate_star_systems.py` фиксирует эти значения для generated JSON;
-- `SpaceBackdropView` ломает заметную зеркальность и повторяемость в renderer-layer, а не пересинтезирует PNG: основной full-color/full-alpha tile pass + два слабых дополнительных tile pass с seed-based phase, layer offsets, per-system X/Y scale, layer alpha и небольшим parallax-offset для high-res `background_tiles`;
+- `SpaceBackdropView` ломает заметную зеркальность и повторяемость в renderer-layer, а не пересинтезирует PNG: основной full-color/full-alpha tile pass рисуется 1:1 (`Vector2.One`), а два очень слабых дополнительных tile pass используют seed-based phase/layer offsets, малую alpha и небольшой parallax-offset для high-res `background_tiles`;
 - brightness/цвет не запекать и не глушить в runtime без явного запроса: фоновые ассеты уже являются художественной основой, texture layer рисуется с `Colors.White` modulate и не использует `TextureTint` как color grade;
 - generated-only nebula overlay вынесен в отдельный `GeneratedNebulaOverlayLayer`, но в baseline выключен (`UseGeneratedNebulaOverlay=false`), чтобы фон не уходил от эталона Sol;
-- для новых imagegen-фонов `tools/process_highres_imagegen_assets.py` обрабатывает `game/assets/generated/background_sources_4k/*.png` в 4096px Sol-style tile variants в `game/assets/generated/background_tiles`: imagegen source дает nebula/dust цвет, broad shapes и restrained baked star/glint contribution, а не прямой fullscreen wallpaper;
-- background tiles не должны читаться как зеркальный/kaleidoscope 2x2-паттерн; сначала править `SpaceBackdropView` layer contract, потому что asset-level synthesis может изменить approved art direction;
+- для новых imagegen-фонов `tools/process_highres_imagegen_assets.py --background-mode direct-source` обрабатывает `game/assets/generated/background_sources_4k/*.png` в 4096px direct-source tile variants в `game/assets/generated/background_tiles`: source art сохраняет свою композицию/цвет через full-rectangle native-scale source passes, processor делает только tileable edge blend и validation, без Sol-like recolor/base texture, без square-only crops и без fullscreen wallpaper;
+- background tiles не должны читаться как зеркальный/kaleidoscope 2x2-паттерн; direct-source processor не использует flip/mirror 2x2, а повторяемость дальше сглаживается `SpaceBackdropView` layer contract;
 - исторически активные Sol/Kora/Nara tiles были восстановлены из backup перед asset-level synthesis; кислотный v6 сохранен отдельно в `tools/generated/backups/background_tiles_20260510_acid_asymmetric_v6_before_restore`; текущие high-res фоны подключены через catalog-backed `background_tiles/*_01_tile.png`;
 - baked-звезды в texture tile можно сохранять как художественный слой, но не как зеркальный fullscreen starfield; `ProceduralStarfieldLayer` внутри `SpaceBackdropView` добавляет runtime starfield/parallax поверх этого слоя;
 - `tools/create_background_tiles.py` остается legacy/fallback методом, который берет Sol tile как quality baseline и создает 4096px variants в `game/assets/generated/background_tiles`;
 - runtime JSON должен ссылаться на `res://assets/generated/background_tiles/*.png`;
-- новые accepted high-res background tiles должны иметь import-настройки как Sol tile: `compress/high_quality=true`, `mipmaps/generate=true`;
+- новые accepted high-res background tiles должны иметь import-настройки baseline: `compress/high_quality=true`, `mipmaps/generate=false`; runtime слой использует `TextureFilterEnum.Linear`, чтобы high-res фон оставался sharp source без мыльного mipmap-фильтра;
 - `game/assets/generated/backgrounds/*.png` - legacy imagegen cuts; не использовать их как fullscreen stretched runtime backgrounds.
 
 Planet surfaces:
@@ -615,7 +645,7 @@ Stars:
 - принятое решение для generated-star quality на 2026-05-11: direct high-res star source не является единственной анимацией, но experimental frame recipe теперь является основной сборкой для generated stars. `tools/process_highres_imagegen_assets.py` должен писать 96-frame sequence в `game/assets/generated/star_frames_experimental/<variant>/sun_00.png..sun_95.png`, а high-res source дает цвет, характер, крупную детализацию и catalog still texture;
 - runtime JSON generated-систем по-прежнему указывает на `game/assets/generated/star_frames/<variant>/sun_00.png..sun_95.png` через `frameDirectory`, `framePrefix`, `frameCount=96`; `SpaceBackground` поверх этого автоматически предпочитает matching `star_frames_experimental/<variant>` как primary path, если там есть `sun_00.png`;
 - быстрый откат primary generated-star visuals: запустить игру с `--star-frames=stable`, `--stable-star-frames` или `--experimental-star-frames=false`; stable кадры в `star_frames/<variant>` и Sol assets при этом не меняются;
-- `SpaceBackground` загружает frame sequence текущей звезды и передает ее в `StabilizedSunView`; для повторного переключения систем используется cache последних star-frame sets, чтобы не грузить 96 текстур заново;
+- `SpaceBackground` загружает frame sequence текущей звезды и передает ее в `StabilizedSunView`; runtime держит только актуальный star-frame set в `SunFrameCache` и чистит старые frame texture paths из общего `TextureCache`, чтобы перелеты не накапливали память предыдущих звезд;
 - import-настройки accepted generated star frames должны оставаться high-quality/mipmapped, как у Sol sun frames: `compress/high_quality=true`, `mipmaps/generate=true`;
 - не возвращаться к варианту, где star source PNG просто remap/warp-анимируется: это дает мыло, статичную картинку с деформацией и заметный reset цикла;
 - не делать corona/prominence как отдельные равномерные внешние пятна. Огненные языки должны быть привязаны к rim/короне, а не выглядеть как венок светящихся шаров вокруг диска.
@@ -638,6 +668,10 @@ Stars:
 - `diagnostics/star_map_v2_visual_final/*` - Star Map visual pass после улучшения фона, glyphs, typographic panel и star details;
 - `diagnostics/star_map_v2_route_curve/*` - проверка curved dashed route после выбора target system;
 - `diagnostics/star_map_v2_popup_final/*` - проверка right-hold planet popup со списком планет.
+
+Additional recent diagnostic:
+
+- `game/diagnostics/target_lock_v1_active3/*` - target-lock V1 smoke capture with `--debug-target-lock-first`; completed without `ObjectDB instances leaked at exit`.
 
 ## Star And Sun Rendering
 
@@ -858,6 +892,7 @@ Import/cache correction 2026-05-12:
 
 - `tools/run_game.ps1` now rebuilds `game/SpaceManagersPrototype.sln` when C# source/project files are newer than `game/.godot/mono/temp/bin/Debug/SpaceManagersPrototype.dll`. Running the game from PowerShell is therefore self-refreshing for code changes instead of relying on a prior manual `dotnet build`.
 - `tools/run_game.ps1` now compares `game/assets/ships/*.png` MD5 hashes against Godot `.godot/imported/*.md5` source hashes and runs `Godot --headless --import --path game` before launching when the cache is stale. This avoids the failure mode where runtime draws an old imported ship texture with a refreshed `ships_manifest.json`, which visually offsets thrust ports and ship-bound VFX.
+- `run_game.bat` at the repository root is a double-click wrapper around `tools/run_game.ps1`.
 - `ShipView.UpdateWarpChargeAura()` no longer offsets the aura sprite by `HitboxLocalCenter`. The aura uses the same texture, UVs, idle offset, rotation, and scale as the visible ship sprite, so the shader mask remains pixel-aligned with the hull even when the collision center is not exactly at texture center.
 - `--stress-autopilot` can now run without spawning enemies. This gives clean thrust/warp-charge review captures without shield hits or hostile projectiles covering the ship.
 
@@ -1085,7 +1120,7 @@ python tools/process_highres_imagegen_assets.py safe-import equivalent: assetCou
 star frames completeness: stable 10*96, experimental 10*96
 python tools/generate_star_systems.py --seed 3311337 --clean --write-image-prompts --planet-showcase-highres: success, 1 generated system
 orion_0001 Planet Showcase: 12 planets, all surfaceMap paths under res://assets/generated/planet_surfaces/
-SpaceBackdropView high-res background tiles: seed-based texture variation via StarfieldSeed/NebulaSeed, per-system X/Y scale, layer alpha and parallax offsets; Sol/legacy paths keep baseline behavior
+SpaceBackdropView high-res background tiles: primary pass now uses exact tile size; seed-based phase/layer offsets, low-alpha secondary passes and parallax offsets remain for repeat masking; Sol/legacy paths keep baseline behavior
 python -m py_compile tools/generate_star_systems.py tools/process_highres_imagegen_assets.py: success
 dotnet build game/SpaceManagersPrototype.csproj --configuration Debug via C:\CodexTools\dotnet-8.0.420\dotnet.exe: 0 warnings, 0 errors
 Godot headless smoke --system=orion_0001 --star-frames=experimental: success, Startup star system: Planet Showcase
@@ -1192,7 +1227,7 @@ Godot headless smoke --system=orion_0001 --star-frames=stable: success; stable f
 Последняя проверка после Star Map MVP от 2026-05-11:
 
 ```text
-StarMapOverlay/StarMapToggleButton/StarMapSystemEntry added; GameRoot binds M and HUD icon; OK tunes warp target only.
+StarMapOverlay/StarMapSystemEntry added; GameRoot binds M; OK tunes warp target only. StarMapToggleButton remains in code as an unused fallback widget, but the HUD button is not mounted in the active CanvasLayer.
 Star map adaptive layout: sector grid, variable sector geometry, dense compact labels, priority current/tuned/selected/hover labels.
 dotnet build game/SpaceManagersPrototype.sln: 0 warnings, 0 errors
 dotnet run --project tests/SpaceManagers.Core.Tests/SpaceManagers.Core.Tests.csproj --no-restore: 39 tests passed
@@ -1413,7 +1448,7 @@ python tools/generate_star_systems.py --seed 3311337 --clean --write-image-promp
 - текущее решение мерцания солнца утверждено: стабилизировать rim/контур shader-ом, не гасить внутреннюю плазму;
 - при создании новых звезд использовать текущий `StabilizedSunView`/`sun_stabilized.gdshader` как эталонный подход;
 - generated systems должны ориентироваться на `Sol` как эталон качества;
-- generated backgrounds должны использовать `SpaceBackdropView` и Sol-style tiled background method, а не stretched fullscreen imagegen sheets; для high-res tiles допустима только runtime-вариативность раскладки/слоев через system seeds, не пересинтез PNG без явного запроса;
+- generated backgrounds должны использовать `SpaceBackdropView` и direct-source tiled background method, а не stretched fullscreen imagegen sheets; для high-res tiles допустима только runtime-вариативность раскладки/слоев через system seeds, не пересинтез PNG без явного запроса;
 - generated background runtime-параметры держать как у Sol: `TextureAlpha=1.0`, `TextureParallax=0.08`, `StarParallax=0.32`; новые ассеты подключать только в этот renderer-layer;
 - generated planet/background/star imagegen assets должны идти через direct high-res pipeline и validation report; не принимать ассеты, которые после обработки станут мыльными или растянутыми;
 - generated planet textures должны проходить через `process_highres_imagegen_assets.py` для новых high-res sources или через legacy `process_planet_surface_maps.py` только для старых sheet-sliced assets, чтобы не возвращались размытие и черный seam;
@@ -1441,6 +1476,25 @@ Added 2026-05-11:
 - `WarpTunnelLayer` draws a ship-palette-colored outbound tunnel, switches the star system halfway through, then draws the arrival tunnel in the destination system.
 - Arrival spawn is inside the world bounds near a random edge, with the ship facing the star at the center.
 - `HudOverlay` owns the warp charge percentage bar; `ShipView` owns the ship-local calibration glow/rings.
+
+System switch / warp preload notes, added 2026-05-12:
+
+- `StarSystemLoader` caches generated galaxy index JSON and parsed system JSON so F12 and warp jumps do not repeatedly parse the same files on the switch frame.
+- `SpaceBackground.PreloadSystemResources()` requests system textures through Godot threaded loading before they are needed: high-res background tile, generated/star fallback frames, planet surface maps, and Sol earth/moon maps.
+- `GameRoot` preloads the current system and the next generated system for F12 cycling. When the starmap tunes a warp target, that target system is also preloaded during the 12-second warp calibration window.
+- `SpaceBackground.LoadTexture()` treats in-progress threaded textures as pending instead of forcing a synchronous `ResourceLoader.Load()` on the gameplay frame. If a texture is not ready yet, the renderer uses fallback/empty visuals and refreshes the system layer once all requested resources are loaded.
+- Generated star frames must be loaded through the same non-blocking texture path as backgrounds and planets. Do not reintroduce direct `ResourceLoader.Load<Texture2D>()` inside the 96-frame sun sequence loop; that is the most likely source of 2+ second hitches on warp/F12 system switches.
+- Verification on 2026-05-12: F12-style stress `--stress-system-switches=5 --stress-system-switch-interval=0.4 --stress-seconds=4` completed at avg_fps ~143.5, max_frame_ms ~31.6; warp smoke `--warp-vfx-smoke --stress-autopilot --stress-seconds=4` completed Sol -> Nara Lenos with max_frame_ms ~6.9. Run Godot smoke tests sequentially, not in parallel, because parallel headless processes share the same `.godot` cache and can produce false dummy-renderer texture warnings.
+- Follow-up optimization on 2026-05-12: `SpaceBackdropView` caches deterministic procedural star/nebula fields by background seeds, texture path, palette, and world bounds; same-seed systems no longer regenerate the whole backdrop point field on every switch. `SpaceBackground` reuses same-system animated planet views when threaded resources finish instead of QueueFree/Create cycling them, skips duplicate still-planet texture loads for planets already handled by animated generated views, and only creates animated planet nodes once their surface texture is available. `GameRoot` defers adjacent/F12 target preloading by one frame after a completed system switch so the critical switch frame does not also enumerate the next system's textures.
+- Verification after follow-up: F12-style stress `--stress-system-switches=5 --stress-system-switch-interval=0.4 --stress-seconds=4` completed at avg_fps ~144.1, max_frame_ms ~13.7; warp smoke stayed at max_frame_ms ~6.9.
+- Regression fix / cleanup on 2026-05-12: legacy planet still-texture fallback is kept for non-animated planets, while generated animated planets wait on their shader surface path. `StarMapOverlay` requests its backdrop texture threaded in `_Ready`, does not sync-load it on first `M`, and disables `_Process` while hidden. `WarpTunnelLayer` disables `_Process` while inactive. `AsteroidFireLayer` no longer loads fire textures or creates its additive material in `_Ready`; it initializes them only when fire/burn visuals are actually drawn. `SpaceBackground.LoadTexture()` now queries threaded status only for paths it requested itself and caches resolved textures, removing verbose `load_threaded_get_status` noise and repeated resource lookups.
+- Hotfix on 2026-05-13: generated planet `surfaceMap` files are shader source maps, not finished sprites. `SpaceBackground` must not put planets with a generated visual profile into `_planetTextures` or draw them through square `DrawTextureRect` fallback; while the animated view waits for threaded resources, use the circular map-color fallback instead of exposing the raw 2:1 surface map.
+- Hotfix follow-up on 2026-05-13: newly created `AnimatedPlanetView` instances must receive `ApplyVisualState()` immediately after `SurfaceTexture` assignment. Otherwise `_Ready()` can run before the texture is assigned, `IsAvailable` stays false, and the renderer falls back to a flat colored disk forever.
+- Shutdown cleanup on 2026-05-13: `SpaceBackground` and `StarMapOverlay` drain any outstanding `ResourceLoader.LoadThreadedRequest()` paths during `_ExitTree()`. This prevents quick smoke/capture exits from reporting `ObjectDB instances leaked at exit` after async texture preloads.
+- Memory/render follow-up on 2026-05-13: `SpaceBackground` no longer preloads Sol fallback frames when generated star frames exist, limits generated sun-frame caching to the active set, and prunes stale star-frame entries from `TextureCache` after system changes. `SpaceBackdropView` now queues backdrop redraw only when camera position, zoom, or viewport size changes.
+- Background import follow-up on 2026-05-13: active generated background tile imports use `mipmaps/generate=false`; all `game/assets/generated/background_tiles/*.png.import` files should remain aligned with the sharp direct-source baseline unless a capture proves shimmering is worse than blur.
+- Stress harness cleanup: when `--stress-seconds` requests quit, `GameRoot` sets `_quitRequested` and stops the rest of the frame, so the test harness no longer continues visual updates after `GetTree().Quit()`.
+- Capture quit cleanup on 2026-05-13: frame/VFX capture no longer calls `GetTree().Quit()` immediately from the capture frame. `GameRoot` defers capture quit for a few frames via `RequestCaptureQuit()`/`UpdateDeferredCaptureQuit()`, which lets Godot finish unloading runtime nodes/resources and removed the intermittent `ObjectDB instances leaked at exit` warning in sequential target-lock smoke capture.
 
 Warp VFX V2 notes:
 
@@ -1490,6 +1544,50 @@ Ship warp charge shader notes:
 - The old C# warp charge ring/conduit renderer was removed from the active draw path so the charge reads as energy over the ship geometry instead of a black-hole-like object centered on the ship.
 - `GameRoot` sends `ShipCatalog.WarpOuterColor()` / `ShipCatalog.WarpCoreColor()` into `ShipView`, so ship charging uses the same race warp palette as the tunnel instead of normal engine thrust colors.
 - `--warp-charge-smoke` is a debug review mode that tunes the drive to an alternate system and holds the ship at 100% charge without starting transit; use it with `--capture-frame-dir` to inspect the ship-only charge effect.
+
+World grid streaming notes:
+
+- `src/SpaceManagers.Core/WorldGrid.cs` defines the infinite world grid. One grid cell is exactly the old playable map size: `SimulationConfig.Bounds.HalfWidth * 2` by `HalfHeight * 2`.
+- The player is no longer clamped/bounced by `WorldBounds`. Crossing the old edge moves the active simulation into the next `WorldGridCell`.
+- `LocalSimulation` always simulates the primary cell `(0, 0)` plus the player's current active cell. On cell switch it unloads projectiles/events and non-primary asteroids from cells that are no longer active, but it does not delete pursuing enemies.
+- The primary cell `(0, 0)` is the actual star system: star, planets, solar gravity, solar heat, and sun burn exist only there and continue ticking even while the player is in another grid. Non-primary cells contain continuing space and active-cell asteroids only.
+- Enemies are ship entities, not cell debris: they can cross grid boundaries after the player and keep AI state instead of being wiped on transition.
+- Asteroids spawn around the primary cell and around the active cell edges. In non-primary cells they fly without solar gravity/heat/burn, so off-system space stays cheap and does not simulate hidden solar content.
+- `SpaceBackground` no longer draws the old cyan world frame. It hides star/orbit/planet layers when the camera is outside the primary cell, while `SpaceBackdropView` fills the visible camera rect so space continues during infinite flight.
+- Visual simulation of the primary star system is disabled when the camera/player is outside `(0, 0)`: star/planet/orbit canvas items are hidden and the minimap skips primary-cell asteroid trajectory drawing outside the active visual cell. This does not apply to ships/enemies.
+- `HudOverlay` minimap is local to the current cell. It shows star/orbits/planets only in `(0, 0)`, draws active-cell asteroids and all visible ships relative to the active cell origin, and the coordinate label includes grid indices. Asteroid trajectory previews are solar-curved in the primary cell and inertial/linear in non-primary cells.
+- Debug spawns use the player's current grid for local clamping, so F5/F7/F8 remain usable outside the primary cell.
+- Core tests cover crossing the old boundary, preserving pursuing enemies on grid switch, always-on central asteroids, unloading inactive non-primary asteroids, and seeding cold asteroids in a non-primary active cell.
+
+Weapon system V1 notes:
+
+- Weapon parameters are now centralized in `src/SpaceManagers.Core/WeaponDefinition.cs` and `WeaponCatalog.cs`. `SimulationConfig.PrimaryWeapon` is the active weapon definition used by `LocalSimulation`.
+- Current player/NPC gun is `basic_projectile_cannon`: `WeaponDamageType.Projectile`, `WeaponFireMode.Manual`, `Damage = 100`, `Cooldown = 0.135`, `EnergyCost = 2.5`, `ProjectileSpeed = 1450`, `ProjectileLifetime = 1.35`, `Range = 1450 * 1.35`, `ManualConeDegrees = 60`.
+- Damage type axioms:
+  - `Projectile`: 50% to shield, 100% to armor, 60% to structure, 100% to asteroids.
+  - `Laser`: 100% to shield, 50% to armor, 60% to structure, 100% to asteroids.
+  - `Hybrid`: 80% to shield, 80% to armor, 60% to structure, 100% to asteroids.
+- `CombatStats.ApplyWeaponDamage()` applies weapon damage by layer with a base-damage budget, so overflow from shield to armor uses the next layer multiplier instead of blindly carrying already-scaled damage.
+- `ProjectileState` now stores `WeaponId`, `DamageType`, and `RangeRemaining`. Moving projectiles are removed when lifetime expires or when they consume weapon range.
+- Manual weapons only fire inside their forward cone. The current cannon is no longer 360-degree cursor fire; it shoots only within the 60-degree nose cone.
+- Turret weapons are scaffolded through `WeaponFireMode.Turret` and `InputCommand.LockedTargetShipId`; player turret weapons should use the active target lock, while NPCs can still aim at AI targets through `AimWorld`.
+- `WeaponDamageType.Laser` is handled as an instant hitscan weapon in core: it checks weapon range before firing and applies impact/damage immediately to the nearest valid ship/asteroid along the ray.
+- `game/scripts/WeaponRangeLayer.cs` renders the active weapon reach in world space: a low-alpha range ring plus a forward cone for manual weapons. It is visible only in Combat mode and reads from the same `PrimaryWeapon` definition as the simulation.
+- Verification on 2026-05-13: core tests passed 50/50; `dotnet build game/SpaceManagersPrototype.csproj` completed with 0 warnings/errors; Godot headless smoke passed; sequential 4-second combat stress completed at avg_fps 145.0, min_fps 145.0, max_frame_ms 6.9.
+
+Direct-source background tile pass on 2026-05-13:
+
+- `tools/process_highres_imagegen_assets.py` now supports `--only-backgrounds` and `--background-mode direct-source`.
+- Direct-source background processing preserves the accepted imagegen source by quilting full rectangular source passes at native pixel scale; it does not stretch one source over the world, does not cut square-only fragments, does not use Sol as a base, and does not use flip/mirror kaleidoscope synthesis.
+- The 2026-05-13 rectangular-paste fix changed `paste_wrapped_patch()` to use independent patch width/height, so non-square source images are no longer accidentally inserted as square fragments.
+- `SpaceBackdropView` now draws the primary high-res background pass at exact tile size (`Vector2.One`) and keeps only very subtle phase-offset secondary passes, so runtime does not add visible source compression/stretching.
+- Sharpness hotfix on 2026-05-13: the direct-source background recipe must not let the blurred broad layer dominate the final tile. The unblurred rectangular source pass is the primary layer; the blurred pass is only a weak low-frequency underlay. `SpaceBackdropView` uses `TextureFilterEnum.Linear` for the backdrop layer instead of `LinearWithMipmaps`, because mipmap filtering visibly softened high-res star dust and nebula edges during normal gameplay.
+- Runtime optimization follow-up on 2026-05-13: backdrop redraw is skipped while camera/zoom/viewport are unchanged, generated-star fallback Sol frames are not preloaded when the preferred frame set exists, and stale star-frame textures are removed from `TextureCache` on system changes.
+- Catalog entries are registered with `source=imagegen_direct_highres_tile`.
+- Validation command: `python tools/process_highres_imagegen_assets.py --only-backgrounds --background-mode direct-source --update-catalog --replace-backgrounds`.
+- Result after sharpness hotfix: 12/12 generated background sources processed into `game/assets/generated/background_tiles/*_01_tile.png`, failed 0, seam deltas 0.00000. `violet_rift` validation sharpness is `380.22`; simple screen capture edge-detail on `perseus_violet_03.png` is about `342.67`, versus the pre-hotfix tile edge-detail of about `22.85`.
+- Current checked-in/generated galaxy was rebuilt with `python tools/generate_star_systems.py --seed 3311340 --sectors 6 --clean`; 21 generated systems reference `res://assets/generated/background_tiles/*_01_tile.png` and cover all 12 direct-source background tiles.
+- Godot import/smoke: `--headless --import --path game` reimported the 12 rewritten background tiles; `dotnet build game\SpaceManagersPrototype.csproj --nologo` passed with 0 warnings/errors; `--headless --path game --quit-after 5 -- --system=cygnus_0004 --star-frames=experimental` started cleanly on `Seda Kelyr`; visible capture `--system=perseus_0003` wrote `game/diagnostics/background_sharpness_20260513/perseus_violet_00..05.png`.
 
 ## Safe Change Checklist
 

@@ -60,6 +60,59 @@ public readonly record struct CombatStats(
         };
     }
 
+    public CombatStats ApplyWeaponDamage(float baseDamage, WeaponDamageProfile profile, float shieldZeroRegenLockout)
+    {
+        if (baseDamage <= 0f || IsDestroyed)
+        {
+            return this;
+        }
+
+        var remainingBaseDamage = baseDamage;
+        var shield = Shield;
+        var armor = Armor;
+        var structure = Structure;
+        var lockout = ShieldRegenLockout;
+
+        if (shield > 0f)
+        {
+            ApplyLayerDamage(
+                ref shield,
+                ref remainingBaseDamage,
+                profile.ShieldMultiplier,
+                out var depleted);
+            if (depleted)
+            {
+                lockout = MathF.Max(lockout, shieldZeroRegenLockout);
+            }
+        }
+
+        if (remainingBaseDamage > 0f && armor > 0f)
+        {
+            ApplyLayerDamage(
+                ref armor,
+                ref remainingBaseDamage,
+                profile.ArmorMultiplier,
+                out _);
+        }
+
+        if (remainingBaseDamage > 0f && structure > 0f)
+        {
+            ApplyLayerDamage(
+                ref structure,
+                ref remainingBaseDamage,
+                profile.StructureMultiplier,
+                out _);
+        }
+
+        return this with
+        {
+            Shield = Math.Clamp(shield, 0f, MaxShield),
+            Armor = Math.Clamp(armor, 0f, MaxArmor),
+            Structure = Math.Clamp(structure, 0f, MaxStructure),
+            ShieldRegenLockout = lockout
+        };
+    }
+
     public CombatStats RegenerateShield(float delta, float shieldRegenPerSecond)
     {
         if (delta <= 0f || IsDestroyed)
@@ -79,5 +132,35 @@ public readonly record struct CombatStats(
             Shield = shield,
             ShieldRegenLockout = lockout
         };
+    }
+
+    private static void ApplyLayerDamage(
+        ref float layer,
+        ref float remainingBaseDamage,
+        float multiplier,
+        out bool depleted)
+    {
+        depleted = false;
+        if (remainingBaseDamage <= 0f || layer <= 0f)
+        {
+            return;
+        }
+
+        multiplier = MathF.Max(0f, multiplier);
+        if (multiplier <= 0f)
+        {
+            remainingBaseDamage = 0f;
+            return;
+        }
+
+        var effectiveDamage = remainingBaseDamage * multiplier;
+        var absorbed = MathF.Min(layer, effectiveDamage);
+        layer -= absorbed;
+        remainingBaseDamage = MathF.Max(0f, remainingBaseDamage - absorbed / multiplier);
+        depleted = layer <= 0f;
+        if (depleted)
+        {
+            layer = 0f;
+        }
     }
 }

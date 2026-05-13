@@ -1,293 +1,7 @@
 {
-  "assetCount": 34,
+  "assetCount": 12,
   "failedCount": 0,
   "assets": [
-    {
-      "kind": "star",
-      "archetype": "amber_giant",
-      "variantId": "amber_giant_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\amber_giant_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\amber_giant_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 149.07,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "star",
-      "archetype": "blue_white_star",
-      "variantId": "blue_white_star_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\blue_white_star_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\blue_white_star_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 254.514,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "star",
-      "archetype": "green_exotic",
-      "variantId": "green_exotic_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\green_exotic_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\green_exotic_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 641.227,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "star",
-      "archetype": "neutron_like",
-      "variantId": "neutron_like_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\neutron_like_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\neutron_like_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 197.582,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "star",
-      "archetype": "orange_dwarf",
-      "variantId": "orange_dwarf_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\orange_dwarf_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\orange_dwarf_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 80.342,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "star",
-      "archetype": "red_dwarf",
-      "variantId": "red_dwarf_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\red_dwarf_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\red_dwarf_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 180.41,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "star",
-      "archetype": "red_giant",
-      "variantId": "red_giant_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\red_giant_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\red_giant_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 58.416,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "star",
-      "archetype": "violet_anomaly",
-      "variantId": "violet_anomaly_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\violet_anomaly_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\violet_anomaly_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 383.179,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "star",
-      "archetype": "white_dwarf",
-      "variantId": "white_dwarf_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\white_dwarf_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\white_dwarf_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 134.27,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "star",
-      "archetype": "yellow_main_sequence",
-      "variantId": "yellow_main_sequence_01",
-      "sourcePath": "game\\assets\\generated\\star_sources_4k\\yellow_main_sequence_01.png",
-      "outputPath": "game\\assets\\generated\\stars\\yellow_main_sequence_01.png",
-      "width": 2048,
-      "height": 2048,
-      "sharpness": 132.59,
-      "seamDelta": null,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "barren_rock",
-      "variantId": "barren_rock_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\barren_rock_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\barren_rock_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 231.089,
-      "seamDelta": 5e-05,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "cold_gas_giant",
-      "variantId": "cold_gas_giant_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\cold_gas_giant_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\cold_gas_giant_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 38.111,
-      "seamDelta": 0.0,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "desert",
-      "variantId": "desert_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\desert_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\desert_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 124.724,
-      "seamDelta": 4e-05,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "earthlike",
-      "variantId": "earthlike_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\earthlike_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\earthlike_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 196.23,
-      "seamDelta": 3e-05,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "ice",
-      "variantId": "ice_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\ice_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\ice_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 262.852,
-      "seamDelta": 8e-05,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "ocean",
-      "variantId": "ocean_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\ocean_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\ocean_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 192.336,
-      "seamDelta": 3e-05,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "ringed_giant",
-      "variantId": "ringed_giant_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\ringed_giant_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\ringed_giant_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 38.306,
-      "seamDelta": 0.0,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "scorched_rock",
-      "variantId": "scorched_rock_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\scorched_rock_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\scorched_rock_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 237.909,
-      "seamDelta": 8e-05,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "shattered_world",
-      "variantId": "shattered_world_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\shattered_world_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\shattered_world_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 146.305,
-      "seamDelta": 0.0,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "toxic",
-      "variantId": "toxic_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\toxic_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\toxic_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 41.135,
-      "seamDelta": 1e-05,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "volcanic",
-      "variantId": "volcanic_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\volcanic_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\volcanic_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 207.174,
-      "seamDelta": 0.00011,
-      "status": "ok",
-      "notes": []
-    },
-    {
-      "kind": "planet",
-      "archetype": "warm_gas_giant",
-      "variantId": "warm_gas_giant_01",
-      "sourcePath": "game\\assets\\generated\\planet_sources_4k\\warm_gas_giant_01.png",
-      "outputPath": "game\\assets\\generated\\planet_surfaces\\warm_gas_giant_01.png",
-      "width": 4096,
-      "height": 2048,
-      "sharpness": 30.347,
-      "seamDelta": 0.0,
-      "status": "ok",
-      "notes": []
-    },
     {
       "kind": "background",
       "archetype": "black_silent_reach",
@@ -296,10 +10,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\black_silent_reach_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 23.067,
+      "sharpness": 32.032,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -309,10 +24,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\cold_blue_void_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 36.315,
+      "sharpness": 615.826,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -322,10 +38,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\crimson_sparse_field_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 34.492,
+      "sharpness": 93.568,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -335,10 +52,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\deep_indigo_field_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 30.473,
+      "sharpness": 195.511,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -348,10 +66,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\emerald_mist_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 39.941,
+      "sharpness": 213.37,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -361,10 +80,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\golden_cluster_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 38.666,
+      "sharpness": 899.399,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -374,10 +94,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\icy_cyan_starfield_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 36.982,
+      "sharpness": 347.712,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -387,10 +108,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\pale_star_nursery_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 37.841,
+      "sharpness": 314.364,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -400,10 +122,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\rust_dust_lane_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 37.722,
+      "sharpness": 286.042,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -413,10 +136,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\smoky_amber_cloud_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 36.197,
+      "sharpness": 424.061,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -426,10 +150,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\teal_nebula_shelf_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 37.17,
+      "sharpness": 420.876,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     },
     {
       "kind": "background",
@@ -439,10 +164,11 @@
       "outputPath": "game\\assets\\generated\\background_tiles\\violet_rift_01_tile.png",
       "width": 4096,
       "height": 4096,
-      "sharpness": 37.811,
+      "sharpness": 380.22,
       "seamDelta": 0.0,
       "status": "ok",
-      "notes": []
+      "notes": [],
+      "sourceLabel": "imagegen_direct_highres_tile"
     }
   ]
 }

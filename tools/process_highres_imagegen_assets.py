@@ -45,6 +45,7 @@ BACKGROUND_TARGET_SIZE = 4096
 STAR_MIN_SHARPNESS = 24.0
 PLANET_MIN_SHARPNESS = 18.0
 BACKGROUND_MIN_SHARPNESS = 8.5
+BACKGROUND_DIRECT_SOURCE_MIN_SHARPNESS = 1.5
 STAR_MIN_EDGE_MARGIN_RATIO = 0.045
 PLANET_MAX_SEAM_DELTA = 0.075
 BACKGROUND_MAX_SEAM_DELTA = 0.090
@@ -63,6 +64,7 @@ class ProcessedAsset:
     seam_delta: float | None
     status: str
     notes: tuple[str, ...]
+    source_label: str = ""
 
 
 def main() -> None:
@@ -78,12 +80,23 @@ def main() -> None:
     parser.add_argument(
         "--replace-backgrounds",
         action="store_true",
-        help="Use processed direct imagegen background tiles as active backdrop texture sets. Default keeps Sol-style backdrop tiles active.",
+        help="Use processed direct imagegen background tiles as active backdrop texture sets.",
     )
     parser.add_argument("--report", default=str(ROOT / "tools" / "generated" / "highres_asset_report.json"), help="Validation report path.")
     parser.add_argument("--planet-width", type=int, default=PLANET_TARGET_SIZE[0], help="Processed planet map width.")
     parser.add_argument("--planet-height", type=int, default=PLANET_TARGET_SIZE[1], help="Processed planet map height.")
     parser.add_argument("--background-size", type=int, default=BACKGROUND_TARGET_SIZE, help="Processed square background tile size.")
+    parser.add_argument(
+        "--background-mode",
+        choices=("sol-style", "direct-source"),
+        default="direct-source",
+        help="Background processing mode. direct-source is the current baseline; sol-style is the legacy Sol-tile translation path.",
+    )
+    parser.add_argument(
+        "--only-backgrounds",
+        action="store_true",
+        help="Process/register only background sources. Useful when iterating on space backdrop tiles.",
+    )
     parser.add_argument("--star-size", type=int, default=STAR_TARGET_SIZE, help="Processed square star source size.")
     parser.add_argument(
         "--write-experimental-star-frames",
@@ -112,9 +125,10 @@ def main() -> None:
         return
 
     assets: list[ProcessedAsset] = []
-    assets.extend(process_stars(catalog, args.star_size, write_experimental_frames=args.write_experimental_star_frames))
-    assets.extend(process_planets(catalog, (args.planet_width, args.planet_height)))
-    assets.extend(process_backgrounds(catalog, args.background_size))
+    if not args.only_backgrounds:
+        assets.extend(process_stars(catalog, args.star_size, write_experimental_frames=args.write_experimental_star_frames))
+        assets.extend(process_planets(catalog, (args.planet_width, args.planet_height)))
+    assets.extend(process_backgrounds(catalog, args.background_size, args.background_mode))
 
     report_path = Path(args.report)
     write_report(report_path, assets)
@@ -202,7 +216,7 @@ def process_planets(catalog: dict[str, Any], target_size: tuple[int, int]) -> li
     return assets
 
 
-def process_backgrounds(catalog: dict[str, Any], target_size: int) -> list[ProcessedAsset]:
+def process_backgrounds(catalog: dict[str, Any], target_size: int, mode: str = "direct-source") -> list[ProcessedAsset]:
     valid_archetypes = {backdrop["id"] for backdrop in catalog.get("spaceBackdropArchetypes", [])}
     assets: list[ProcessedAsset] = []
     for source_path in png_files(BACKGROUND_SOURCE_DIR):
@@ -212,12 +226,17 @@ def process_backgrounds(catalog: dict[str, Any], target_size: int) -> list[Proce
             continue
 
         source = Image.open(source_path).convert("RGB")
-        image = create_sol_style_background_tile(source, source_path.stem, target_size)
+        if mode == "direct-source":
+            image = create_direct_source_background_tile(source, source_path.stem, target_size)
+            source_label = "imagegen_direct_highres_tile"
+        else:
+            image = create_sol_style_background_tile(source, source_path.stem, target_size)
+            source_label = "imagegen_solstyle_highres_tile"
 
         output_path = BACKGROUND_OUTPUT_DIR / f"{source_path.stem}_tile.png"
         image.save(output_path, compress_level=6)
         seam = max(horizontal_seam_delta(image), vertical_seam_delta(image))
-        assets.append(validate_asset("background", archetype, source_path, output_path, image, seam))
+        assets.append(validate_asset("background", archetype, source_path, output_path, image, seam, source_label=source_label))
 
     return assets
 
@@ -267,6 +286,169 @@ def create_sol_style_background_tile(source: Image.Image, variant_id: str, targe
     image = make_tileable(image, max(128, target_size // 12))
     image = ImageEnhance.Contrast(image).enhance(1.035)
     return image.filter(ImageFilter.UnsharpMask(radius=0.45, percent=45, threshold=4))
+
+
+def create_direct_source_background_tile(source: Image.Image, variant_id: str, target_size: int) -> Image.Image:
+    """Build a native-scale source mosaic tile without fullscreen stretching or mirror synthesis."""
+    source_image = ImageEnhance.Contrast(source.convert("RGB")).enhance(1.014)
+    source_image = ImageEnhance.Color(source_image).enhance(1.010)
+    image = make_source_mosaic_tile(source_image, variant_id, target_size)
+    image = ImageEnhance.Contrast(image).enhance(1.018)
+    image = ImageEnhance.Color(image).enhance(1.006)
+    image = image.filter(ImageFilter.UnsharpMask(radius=0.28, percent=118, threshold=1))
+    return make_tileable(image, max(28, target_size // 128))
+
+
+def make_source_mosaic_tile(source: Image.Image, variant_id: str, target_size: int) -> Image.Image:
+    source_arr = np.asarray(source.convert("RGB")).astype(np.float32) / 255.0
+    source_height, source_width, _ = source_arr.shape
+    seed = int(hashlib.sha256(f"direct-source-mosaic:{variant_id}".encode("utf-8")).hexdigest()[:8], 16)
+    rng = np.random.default_rng(seed)
+
+    base_color = source_arr.reshape(-1, 3).mean(axis=0)
+    canvas = np.zeros((target_size, target_size, 3), dtype=np.float32)
+    weights = np.zeros((target_size, target_size, 1), dtype=np.float32)
+    canvas[:, :, :] = base_color[None, None, :] * 0.035
+    weights[:, :, :] = 0.035
+
+    broad_source = np.asarray(
+        source.filter(ImageFilter.GaussianBlur(radius=max(0.8, min(source_width, source_height) / 300.0)))
+    ).astype(np.float32) / 255.0
+
+    quilt_rectangular_source_layer(
+        canvas,
+        weights,
+        broad_source,
+        target_size,
+        rng,
+        step_x=max(820, int(source_width * 0.78)),
+        step_y=max(460, int(source_height * 0.78)),
+        opacity=0.12,
+        feather_x=max(220, int(source_width * 0.18)),
+        feather_y=max(130, int(source_height * 0.18)),
+        use_organic_mask=True,
+        jitter_scale=0.10,
+        row_offset_scale=0.42,
+    )
+    quilt_rectangular_source_layer(
+        canvas,
+        weights,
+        source_arr,
+        target_size,
+        rng,
+        step_x=max(1180, int(source_width * 0.84)),
+        step_y=max(660, int(source_height * 0.84)),
+        opacity=1.0,
+        feather_x=max(150, int(source_width * 0.105)),
+        feather_y=max(90, int(source_height * 0.105)),
+        use_organic_mask=False,
+        jitter_scale=0.035,
+        row_offset_scale=0.50,
+    )
+
+    out = canvas / np.maximum(weights, 0.001)
+    out = match_source_statistics(source_arr, out, strength=0.20)
+    image = array_to_rgb(out)
+    return make_tileable(image, max(48, target_size // 96))
+
+
+def quilt_rectangular_source_layer(
+    canvas: np.ndarray,
+    weights: np.ndarray,
+    source_arr: np.ndarray,
+    target_size: int,
+    rng: np.random.Generator,
+    step_x: int,
+    step_y: int,
+    opacity: float,
+    feather_x: int,
+    feather_y: int,
+    use_organic_mask: bool,
+    jitter_scale: float,
+    row_offset_scale: float,
+) -> None:
+    if step_x <= 0 or step_y <= 0:
+        return
+
+    patch_height, patch_width, _ = source_arr.shape
+    base_mask = rectangular_feather_mask(patch_height, patch_width, feather_y, feather_x)[:, :, None] * opacity
+    columns = int(math.ceil(target_size / step_x)) + 3
+    rows = int(math.ceil(target_size / step_y)) + 3
+    jitter_x = max(4, int(step_x * jitter_scale))
+    jitter_y = max(4, int(step_y * jitter_scale))
+
+    for row in range(rows):
+        for column in range(columns):
+            row_offset = int((row % 2) * step_x * row_offset_scale)
+            x = column * step_x - patch_width // 2 + row_offset + int(rng.integers(-jitter_x, jitter_x + 1))
+            y = row * step_y - patch_height // 2 + int(rng.integers(-jitter_y, jitter_y + 1))
+            patch = source_arr
+            mask = base_mask
+            if use_organic_mask:
+                mask = base_mask * organic_patch_mask(patch_height, patch_width, rng)[:, :, None]
+            paste_wrapped_patch(canvas, weights, patch, mask, x, y, target_size)
+
+
+def rectangular_feather_mask(height: int, width: int, feather_y: int, feather_x: int) -> np.ndarray:
+    yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
+    distance_x = np.minimum(xx, width - 1 - xx)
+    distance_y = np.minimum(yy, height - 1 - yy)
+    mask_x = smoothstep_range(0.0, max(1.0, float(feather_x)), distance_x)
+    mask_y = smoothstep_range(0.0, max(1.0, float(feather_y)), distance_y)
+    mask = np.minimum(mask_x, mask_y)
+    return np.clip(mask, 0.0, 1.0).astype(np.float32)
+
+
+def organic_patch_mask(height: int, width: int, rng: np.random.Generator) -> np.ndarray:
+    grid_width = max(5, width // 180)
+    grid_height = max(5, height // 180)
+    noise = rng.random((grid_height, grid_width), dtype=np.float32)
+    image = Image.fromarray((noise * 255.0 + 0.5).astype(np.uint8), mode="L")
+    image = image.resize((width, height), Image.Resampling.BICUBIC)
+    smooth = np.asarray(image).astype(np.float32) / 255.0
+    smooth = smoothstep_range(0.18, 0.88, smooth)
+    return np.clip(0.22 + smooth * 0.78, 0.0, 1.0).astype(np.float32)
+
+
+def paste_wrapped_patch(
+    canvas: np.ndarray,
+    weights: np.ndarray,
+    patch: np.ndarray,
+    mask: np.ndarray,
+    x: int,
+    y: int,
+    target_size: int,
+) -> None:
+    patch_height, patch_width, _ = patch.shape
+    start_x = x % target_size
+    start_y = y % target_size
+    for patch_y, canvas_y, height in wrapped_ranges(start_y, patch_height, target_size):
+        for patch_x, canvas_x, width in wrapped_ranges(start_x, patch_width, target_size):
+            patch_slice = patch[patch_y:patch_y + height, patch_x:patch_x + width, :]
+            mask_slice = mask[patch_y:patch_y + height, patch_x:patch_x + width, :]
+            canvas[canvas_y:canvas_y + height, canvas_x:canvas_x + width, :] += patch_slice * mask_slice
+            weights[canvas_y:canvas_y + height, canvas_x:canvas_x + width, :] += mask_slice
+
+
+def wrapped_ranges(start: int, length: int, limit: int) -> list[tuple[int, int, int]]:
+    ranges: list[tuple[int, int, int]] = []
+    consumed = 0
+    target = start
+    while consumed < length:
+        chunk = min(length - consumed, limit - target)
+        ranges.append((consumed, target, chunk))
+        consumed += chunk
+        target = 0
+    return ranges
+
+
+def match_source_statistics(source: np.ndarray, tile: np.ndarray, strength: float) -> np.ndarray:
+    source_mean = source.reshape(-1, 3).mean(axis=0)
+    source_std = source.reshape(-1, 3).std(axis=0)
+    tile_mean = tile.reshape(-1, 3).mean(axis=0)
+    tile_std = np.maximum(tile.reshape(-1, 3).std(axis=0), 0.001)
+    matched = (tile - tile_mean[None, None, :]) * (source_std / tile_std)[None, None, :] + source_mean[None, None, :]
+    return np.clip(tile * (1.0 - strength) + matched * strength, 0.0, 1.0)
 
 
 def normalize_color(color: np.ndarray, fallback: np.ndarray) -> np.ndarray:
@@ -766,6 +948,7 @@ def validate_asset(
     output_path: Path,
     image: Image.Image,
     seam_delta: float | None,
+    source_label: str = "",
 ) -> ProcessedAsset:
     sharpness = sharpness_score(image)
     width, height = image.size
@@ -774,7 +957,11 @@ def validate_asset(
     min_sharpness = {
         "star": STAR_MIN_SHARPNESS,
         "planet": PLANET_MIN_SHARPNESS,
-        "background": BACKGROUND_MIN_SHARPNESS,
+        "background": (
+            BACKGROUND_DIRECT_SOURCE_MIN_SHARPNESS
+            if source_label == "imagegen_direct_highres_tile"
+            else BACKGROUND_MIN_SHARPNESS
+        ),
     }[kind]
     if sharpness < min_sharpness:
         notes.append(f"sharpness {sharpness:.2f} below {min_sharpness:.2f}")
@@ -811,6 +998,7 @@ def validate_asset(
         seam_delta=seam_delta,
         status="fail" if notes else "ok",
         notes=tuple(notes),
+        source_label=source_label,
     )
 
 
@@ -904,7 +1092,7 @@ def register_background(catalog: dict[str, Any], asset: ProcessedAsset, replace_
         {
             "id": set_id,
             "path": f"{BACKGROUND_RES_ROOT}/{asset.output_path.name}",
-            "source": "imagegen_solstyle_highres_tile",
+            "source": asset.source_label or "imagegen_solstyle_highres_tile",
             "quality": "direct_highres",
             "validatedSharpness": round(asset.sharpness, 3),
             "validatedSeamDelta": round(asset.seam_delta or 0.0, 5),
@@ -963,6 +1151,7 @@ def write_report(path: Path, assets: list[ProcessedAsset]) -> None:
                 "seamDelta": None if asset.seam_delta is None else round(asset.seam_delta, 5),
                 "status": asset.status,
                 "notes": list(asset.notes),
+                "sourceLabel": asset.source_label,
             }
             for asset in assets
         ],
